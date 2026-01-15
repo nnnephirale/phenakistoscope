@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Halftone Image Transformer</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .app-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .controls {
+            flex: 1;
+            min-width: 300px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+        }
+        .preview {
+            flex: 2;
+            min-width: 400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        input[type="range"] {
+            width: 100%;
+        }
+        .value-display {
+            margin-left: 10px;
+            font-weight: normal;
+            color: #666;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .button-group {
+            margin-top: 20px;
+        }
+        #imageInput {
+            display: none;
+        }
+        .upload-btn {
+            background-color: #2ecc71;
+        }
+        .upload-btn:hover {
+            background-color: #27ae60;
+        }
+        #status {
+            margin-top: 15px;
+            color: #666;
+            font-style: italic;
+        }
+        canvas {
+            max-width: 100%;
+            border: 1px solid #ddd;
+            margin-top: 20px;
+            background-color: white;
+        }
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            max-height: 600px;
+            overflow: auto;
+            border: 1px solid #ddd;
+            margin-top: 20px;
+        }
+        #outputSvg {
+            width: 100%;
+            max-height: 600px;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            background-color: #f1f1f1;
+            border-radius: 5px 5px 0 0;
+            margin-right: 5px;
+        }
+        .tab.active {
+            background-color: #fff;
+            border-bottom: 1px solid white;
+            position: relative;
+            top: 1px;
+            font-weight: bold;
+        }
+        .tab-content {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 0 5px 5px 5px;
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        #loadingIndicator {
+            display: none;
+            margin: 20px 0;
+            text-align: center;
+            color: #3498db;
+        }
+        .spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .param-value {
+            display: inline-block;
+            min-width: 30px;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Halftone Image Transformer</h1>
+        
+        <div class="app-wrapper">
+            <div class="controls">
+                <div class="control-group">
+                    <label for="invertColors">
+                        <input type="checkbox" id="invertColors"> Invert Colors (White dots on black)
+                    </label>
+                </div><h2>Upload Image</h2>
+                <div class="control-group">
+                    <input type="file" id="imageInput" accept="image/*">
+                    <button id="uploadBtn" class="upload-btn">Select Image</button>
+                </div>
+                
+                <h2>Halftone Parameters</h2>
+                <div class="control-group">
+                    <label for="halftoneType">Halftone Style</label>
+                    <select id="halftoneType">
+                        <option value="traditional">Traditional</option>
+                        <option value="clustered">Clustered-Dot</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label for="dotSpacing">Dot Spacing <span id="dotSpacingValue" class="param-value">20</span>px</label>
+                    <input type="range" id="dotSpacing" min="5" max="50" value="20" step="1">
+                </div>
+                
+                <div class="control-group">
+                    <label for="maxDotSize">Maximum Dot Size <span id="maxDotSizeValue" class="param-value">18</span>px</label>
+                    <input type="range" id="maxDotSize" min="5" max="45" value="18" step="1">
+                </div>
+                
+                <div class="control-group">
+                    <label for="minDotSize">Minimum Dot Size <span id="minDotSizeValue" class="param-value">1</span>px</label>
+                    <input type="range" id="minDotSize" min="0" max="10" value="1" step="0.5">
+                </div>
+                
+                <div class="control-group">
+                    <label for="contrastFactor">Size Variance <span id="contrastFactorValue" class="param-value">1</span></label>
+                    <input type="range" id="contrastFactor" min="0.1" max="3" value="1" step="0.1">
+                </div>
+                
+                <div class="control-group">
+                    <label for="imageScale">Image Scale <span id="imageScaleValue" class="param-value">100</span>%</label>
+                    <input type="range" id="imageScale" min="10" max="200" value="100" step="5">
+                </div>
+                
+                <div class="button-group">
+                    <button id="exportSvgBtn">Export SVG</button>
+                </div>
+                
+                <div id="loadingIndicator">
+                    <div class="spinner"></div>
+                    <div>Processing image...</div>
+                </div>
+                
+                <div id="status"></div>
+            </div>
+            
+            <div class="preview">
+                <h2>Preview</h2>
+                <div class="tabs">
+                    <div class="tab active" data-tab="original">Original</div>
+                    <div class="tab" data-tab="halftone">Halftone</div>
+                </div>
+                
+                <div id="originalTab" class="tab-content active">
+                    <img id="originalImage" style="max-width: 100%; max-height: 500px; display: none;">
+                    <div id="placeholderText" style="text-align: center; padding: 50px; color: #999;">
+                        Upload an image to begin
+                    </div>
+                </div>
+                
+                <div id="halftoneTab" class="tab-content">
+                    <div id="outputContainer"></div>
+                    <svg id="outputSvg" viewBox="0 0 500 500" style="display: none;"></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const imageInput = document.getElementById('imageInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const originalImage = document.getElementById('originalImage');
+        const placeholderText = document.getElementById('placeholderText');
+        const outputSvg = document.getElementById('outputSvg');
+        const outputContainer = document.getElementById('outputContainer');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const statusEl = document.getElementById('status');
+        const exportSvgBtn = document.getElementById('exportSvgBtn');
+        
+        // Parameter Sliders
+        const dotSpacing = document.getElementById('dotSpacing');
+        const maxDotSize = document.getElementById('maxDotSize');
+        const minDotSize = document.getElementById('minDotSize');
+        const contrastFactor = document.getElementById('contrastFactor');
+        const invertColors = document.getElementById('invertColors');
+        const halftoneType = document.getElementById('halftoneType');
+        
+        // Value displays
+        const dotSpacingValue = document.getElementById('dotSpacingValue');
+        const maxDotSizeValue = document.getElementById('maxDotSizeValue');
+        const minDotSizeValue = document.getElementById('minDotSizeValue');
+        const contrastFactorValue = document.getElementById('contrastFactorValue');
+        
+        // Variables
+        let originalImageData = null;
+        let imageWidth = 0;
+        let imageHeight = 0;
+        
+        const imageScale = document.getElementById('imageScale');
+        const imageScaleValue = document.getElementById('imageScaleValue');
+        
+        // Update value displays and trigger processing when sliders change
+        function updateAndProcess(slider, valueElement) {
+            valueElement.textContent = slider.value;
+            if (originalImageData) {
+                processImage();
+            }
+        }
+        
+        dotSpacing.addEventListener('input', () => updateAndProcess(dotSpacing, dotSpacingValue));
+        maxDotSize.addEventListener('input', () => updateAndProcess(maxDotSize, maxDotSizeValue));
+        minDotSize.addEventListener('input', () => updateAndProcess(minDotSize, minDotSizeValue));
+        contrastFactor.addEventListener('input', () => updateAndProcess(contrastFactor, contrastFactorValue));
+        imageScale.addEventListener('input', () => updateAndProcess(imageScale, imageScaleValue));
+        invertColors.addEventListener('change', () => {
+            if (originalImageData) {
+                processImage();
+            }
+        });
+        halftoneType.addEventListener('change', () => {
+            if (originalImageData) {
+                processImage();
+            }
+        });
+        
+        // Set up tab switching
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const targetTab = tab.getAttribute('data-tab');
+                
+                // Update tab active states
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                // Update content active states
+                tabContents.forEach(content => content.classList.remove('active'));
+                
+                if (targetTab === 'original') {
+                    document.getElementById('originalTab').classList.add('active');
+                } else if (targetTab === 'halftone') {
+                    document.getElementById('halftoneTab').classList.add('active');
+                }
+            });
+        });
+        
+        // Trigger file input when upload button is clicked
+        uploadBtn.addEventListener('click', () => {
+            imageInput.click();
+        });
+        
+        // Handle image upload
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    // Store original image data
+                    imageWidth = img.width;
+                    imageHeight = img.height;
+                    
+                    // Create a canvas to get image data
+                    const canvas = document.createElement('canvas');
+                    canvas.width = imageWidth;
+                    canvas.height = imageHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    originalImageData = ctx.getImageData(0, 0, imageWidth, imageHeight);
+                    
+                    // Display original image
+                    originalImage.src = event.target.result;
+                    originalImage.style.display = 'block';
+                    placeholderText.style.display = 'none';
+                    
+                    // Update status
+                    statusEl.textContent = `Image loaded: ${imageWidth}×${imageHeight}px. Generating halftone...`;
+                    
+                    // Automatically process the image
+                    processImage();
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+        
+        // Process image function to be called automatically when parameters change
+        function processImage() {
+            if (!originalImageData) {
+                statusEl.textContent = 'Please upload an image first.';
+                return;
+            }
+            
+            // Switch to halftone tab
+            tabs.forEach(t => t.classList.remove('active'));
+            tabs[1].classList.add('active');
+            tabContents.forEach(content => content.classList.remove('active'));
+            document.getElementById('halftoneTab').classList.add('active');
+            
+            // Show loading indicator
+            loadingIndicator.style.display = 'block';
+            statusEl.textContent = 'Processing...';
+            
+            // Use setTimeout to allow UI to update before processing
+            setTimeout(() => {
+                try {
+                    const params = {
+                        dotSpacing: parseFloat(dotSpacing.value),
+                        maxDotSize: parseFloat(maxDotSize.value),
+                        minDotSize: parseFloat(minDotSize.value),
+                        contrastFactor: parseFloat(contrastFactor.value),
+                        invertColors: invertColors.checked,
+                        halftoneType: halftoneType.value
+                    };
+                    
+                    generateHalftone(originalImageData, params);
+                    
+                    statusEl.textContent = `Halftone generated at ${imageScale.value}% scale.`;
+                } catch (error) {
+                    statusEl.textContent = `Error: ${error.message}`;
+                } finally {
+                    loadingIndicator.style.display = 'none';
+                }
+            }, 50);
+        }
+        
+        // Keep process button reference for backwards compatibility
+        const processBtn = document.getElementById('processBtn');
+        
+        // Export SVG
+        exportSvgBtn.addEventListener('click', () => {
+            if (outputSvg.innerHTML === '') {
+                statusEl.textContent = 'Generate a halftone image first.';
+                return;
+            }
+            
+            // Clone the SVG and prepare for export
+            const svgData = new XMLSerializer().serializeToString(outputSvg);
+            const svgBlob = new Blob([
+                '<?xml version="1.0" standalone="no"?>\n',
+                '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n',
+                svgData
+            ], { type: 'image/svg+xml' });
+            
+            // Create download link
+            const url = URL.createObjectURL(svgBlob);
+            const downloadLink = document.createElement('a');
+            downloadLink.href = url;
+            downloadLink.download = 'halftone_image.svg';
+            downloadLink.style.display = 'none';
+            
+            // Add to document, click it, and remove it
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            setTimeout(() => {
+                document.body.removeChild(downloadLink);
+                URL.revokeObjectURL(url);
+            }, 100);
+            
+            statusEl.textContent = 'SVG exported successfully!';
+        });
+        
+        // Main function to generate halftone pattern
+        function generateHalftone(imageData, params) {
+            // Create grayscale array from image data
+            const grayscaleData = createGrayscaleData(imageData);
+            
+            // Clear previous output
+            while (outputContainer.firstChild) {
+                outputContainer.removeChild(outputContainer.firstChild);
+            }
+            
+            // Generate SVG with dots
+            generateHalftoneSvg(grayscaleData, imageData.width, imageData.height, params);
+        }
+        
+        // Convert image data to grayscale
+        function createGrayscaleData(imageData) {
+            const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+            const grayscale = new Array(width * height);
+            
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const index = (y * width + x) * 4;
+                    // Weighted RGB to grayscale conversion
+                    const gray = 0.299 * data[index] + 0.587 * data[index + 1] + 0.114 * data[index + 2];
+                    grayscale[y * width + x] = gray;
+                }
+            }
+            
+            return grayscale;
+        }
+        
+        // Generate SVG with halftone dots
+        function generateHalftoneSvg(grayscaleData, width, height, params) {
+            const { dotSpacing, maxDotSize, minDotSize, contrastFactor, invertColors, halftoneType } = params;
+            const halfMaxSize = maxDotSize / 2;
+            
+            // Get the scale factor
+            const scale = parseInt(imageScale.value) / 100;
+            
+            // Calculate scaled dimensions
+            const scaledWidth = Math.floor(width * scale);
+            const scaledHeight = Math.floor(height * scale);
+            
+            // Calculate grid dimensions
+            const cols = Math.floor(scaledWidth / dotSpacing);
+            const rows = Math.floor(scaledHeight / dotSpacing);
+            
+            // Set SVG attributes
+            outputSvg.setAttribute('width', scaledWidth);
+            outputSvg.setAttribute('height', scaledHeight);
+            outputSvg.setAttribute('viewBox', `0 0 ${scaledWidth} ${scaledHeight}`);
+            outputSvg.style.display = 'block';
+            
+            // Clear previous content
+            outputSvg.innerHTML = '';
+            
+            // Add a background if colors are inverted
+            if (invertColors) {
+                const background = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                background.setAttribute('width', '100%');
+                background.setAttribute('height', '100%');
+                background.setAttribute('fill', 'black');
+                outputSvg.appendChild(background);
+            }
+            
+            // Create dots group
+            const dotsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            dotsGroup.setAttribute('fill', invertColors ? 'white' : 'black');
+            outputSvg.appendChild(dotsGroup);
+            
+            // Generate dots
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    // Calculate center of the dot
+                    const centerX = col * dotSpacing + dotSpacing / 2;
+                    const centerY = row * dotSpacing + dotSpacing / 2;
+                    
+                    // Skip if outside image boundaries
+                    if (centerX - halfMaxSize < 0 || centerX + halfMaxSize > scaledWidth ||
+                        centerY - halfMaxSize < 0 || centerY + halfMaxSize > scaledHeight) {
+                        continue;
+                    }
+                    
+                    // Convert scaled coordinates back to original image coordinates for sampling
+                    const origX = Math.floor(centerX / scale);
+                    const origY = Math.floor(centerY / scale);
+                    
+                    if (origX >= width || origY >= height) continue;
+                    
+                    let brightness = 0;
+                    
+                    // For clustered dots, sample a larger area
+                    if (halftoneType === 'clustered') {
+                        const sampleSize = Math.floor(dotSpacing / 2);
+                        let totalBrightness = 0;
+                        let samples = 0;
+                        
+                        for (let sy = -sampleSize; sy <= sampleSize; sy++) {
+                            for (let sx = -sampleSize; sx <= sampleSize; sx++) {
+                                const sampleX = origX + Math.floor(sx / scale);
+                                const sampleY = origY + Math.floor(sy / scale);
+                                
+                                if (sampleX >= 0 && sampleX < width && sampleY >= 0 && sampleY < height) {
+                                    totalBrightness += grayscaleData[sampleY * width + sampleX];
+                                    samples++;
+                                }
+                            }
+                        }
+                        
+                        brightness = samples > 0 ? totalBrightness / samples : 0;
+                    } else {
+                        // Traditional halftone - single sample
+                        brightness = grayscaleData[origY * width + origX];
+                    }
+                    
+                    // Apply contrast adjustment
+                    let adjustedBrightness = brightness;
+                    if (contrastFactor !== 1) {
+                        adjustedBrightness = ((adjustedBrightness - 127.5) * contrastFactor) + 127.5;
+                        adjustedBrightness = Math.max(0, Math.min(255, adjustedBrightness));
+                    }
+                    
+                    // Invert brightness if necessary
+                    if (invertColors) {
+                        adjustedBrightness = 255 - adjustedBrightness;
+                    }
+                    
+                    // Calculate dot size based on brightness
+                    // Brightness 0 (black) = maxDotSize, Brightness 255 (white) = minDotSize
+                    const dotSizeRange = maxDotSize - minDotSize;
+                    const dotRadius = minDotSize + (dotSizeRange * (1 - adjustedBrightness / 255)) / 2;
+                    
+                    // Skip very small dots
+                    if (dotRadius < 0.1) continue;
+                    
+                    // Create the dot
+                    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    dot.setAttribute('cx', centerX);
+                    dot.setAttribute('cy', centerY);
+                    dot.setAttribute('r', dotRadius);
+                    
+                    dotsGroup.appendChild(dot);
+                }
+            }
+            
+            // Update canvas size to match image
+            const svgContainer = outputSvg.parentNode;
+            svgContainer.style.width = `${scaledWidth}px`;
+            svgContainer.style.height = `${scaledHeight}px`;
+        }
+    </script>
+</body>
+</html>

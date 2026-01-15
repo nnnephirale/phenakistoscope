@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tarot Workspace</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#f4f4f5">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+</head>
+<body>
+
+    <div class="ui-layer">
+        <div class="header">
+            <h1 class="logo">Tarot<span style="color: #a1a1aa;">Workspace</span></h1>
+            <div class="controls-group">
+                <button id="shuffle-btn" class="btn-primary">Shuffle</button>
+                <button id="stop-btn" class="btn-danger hidden">Stop & Deal</button>
+            </div>
+        </div>
+        <p class="instruction">Drag cards to the table. Drop them back at the bottom to return them.</p>
+    </div>
+
+    <div id="table-surface"></div>
+
+    <div id="deck-container">
+        <div id="deck-row"></div>
+    </div>
+
+    <div id="card-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <button id="close-modal" class="close-icon">&times;</button>
+            <h2 id="modal-title">Card Name</h2>
+            <div id="modal-card-display" class="large-card"></div>
+            <p id="modal-desc" class="text-muted">Interpretation goes here...</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js').catch(() => {});
+        }
+    </script>
+</body>
+</html>

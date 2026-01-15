@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sticker Book</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #1a1a1a;
+      --surface: #2a2a2a;
+      --text: #e0e0e0;
+      --text-dim: #888;
+      --accent: #fff;
+    }
+
+    body {
+      font-family: 'Space Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    .app {
+      display: flex;
+      height: 100vh;
+    }
+
+    .canvas-area {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 50%, #222 0%, #1a1a1a 100%);
+    }
+
+    .canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    .sidebar {
+      width: 320px;
+      background: var(--surface);
+      border-left: 1px solid #333;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid #333;
+    }
+
+    .sidebar-header h1 {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .sidebar-header p {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .upload-zone {
+      padding: 20px;
+      border-bottom: 1px solid #333;
+    }
+
+    .upload-btn {
+      width: 100%;
+      padding: 16px;
+      background: transparent;
+      border: 2px dashed #444;
+      border-radius: 8px;
+      color: var(--text-dim);
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .upload-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    #file-input {
+      display: none;
+    }
+
+    .sticker-gallery {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .gallery-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+    }
+
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .gallery-item {
+      aspect-ratio: 1;
+      background: #333;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+
+    .gallery-item:hover {
+      background: #3a3a3a;
+      transform: scale(1.05);
+    }
+
+    .gallery-item img {
+      max-width: 80%;
+      max-height: 80%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
+    .gallery-item .delete-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 18px;
+      height: 18px;
+      background: rgba(0,0,0,0.7);
+      border: none;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 10px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .gallery-item:hover .delete-btn {
+      opacity: 1;
+    }
+
+    .controls-panel {
+      padding: 20px;
+      border-top: 1px solid #333;
+    }
+
+    .controls-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+    }
+
+    .control-group {
+      margin-bottom: 16px;
+    }
+
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .control-label span {
+      font-size: 11px;
+    }
+
+    .control-value {
+      color: var(--text-dim);
+      font-variant-numeric: tabular-nums;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      height: 4px;
+      -webkit-appearance: none;
+      background: #444;
+      border-radius: 2px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      background: var(--accent);
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    input[type="color"] {
+      width: 100%;
+      height: 32px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      background: #333;
+    }
+
+    .actions {
+      padding: 16px 20px 20px;
+      border-top: 1px solid #333;
+      display: flex;
+      gap: 8px;
+    }
+
+    .action-btn {
+      flex: 1;
+      padding: 12px;
+      background: transparent;
+      border: 1px solid #444;
+      border-radius: 6px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .action-btn:hover {
+      background: rgba(255,255,255,0.05);
+      border-color: var(--accent);
+    }
+
+    .action-btn.primary {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+
+    /* WebGL Sticker */
+    .sticker {
+      position: absolute;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .sticker:active {
+      cursor: grabbing;
+    }
+
+    .sticker canvas {
+      display: block;
+    }
+
+    .sticker-delete {
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      width: 22px;
+      height: 22px;
+      background: #ff4444;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s, transform 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      line-height: 1;
+    }
+
+    .sticker:hover .sticker-delete {
+      opacity: 1;
+    }
+
+    .sticker-delete:hover {
+      transform: scale(1.15);
+    }
+
+    .empty-state {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: var(--text-dim);
+      pointer-events: none;
+    }
+
+    .empty-state svg {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 16px;
+      opacity: 0.3;
+    }
+
+    .empty-state p {
+      font-size: 12px;
+    }
+
+    .drag-ghost {
+      position: fixed;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.85;
+      transform: scale(1.1) rotate(-8deg);
+      filter: drop-shadow(0 10px 20px rgba(0,0,0,0.4));
+    }
+
+    .drag-ghost img {
+      max-width: 100px;
+      max-height: 100px;
+    }
+
+    .sticker-gallery::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .sticker-gallery::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .sticker-gallery::-webkit-scrollbar-thumb {
+      background: #444;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="canvas-area">
+      <div class="canvas-container" id="canvas-container">
+        <div class="empty-state" id="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 2L12 22M2 12L22 12" stroke-linecap="round"/>
+          </svg>
+          <p>Upload stickers and drag them here</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h1>Sticker Book</h1>
+        <p>Upload PNGs or SVGs to stick</p>
+      </div>
+
+      <div class="upload-zone">
+        <button class="upload-btn" id="upload-btn">
+          Drop files here or click to upload
+        </button>
+        <input type="file" id="file-input" accept=".png,.svg,image/png,image/svg+xml" multiple>
+      </div>
+
+      <div class="sticker-gallery">
+        <div class="gallery-label">Your Stickers</div>
+        <div class="gallery-grid" id="gallery"></div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="controls-title">Sticker Configuration</div>
+
+        <div class="control-group">
+          <div class="control-label">
+            <span>Rotation</span>
+            <span class="control-value" id="rotation-value">15°</span>
+          </div>
+          <input type="range" id="rotation" min="0" max="45" value="15">
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">
+            <span>Hover Peelback</span>
+            <span class="control-value" id="hover-peel-value">25%</span>
+          </div>
+          <input type="range" id="hover-peel" min="0" max="100" value="25">
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">
+            <span>Active Peelback</span>
+            <span class="control-value" id="active-peel-value">65%</span>
+          </div>
+          <input type="range" id="active-peel" min="0" max="100" value="65">
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">
+            <span>Curl Radius</span>
+            <span class="control-value" id="curl-radius-value">0.15</span>
+          </div>
+          <input type="range" id="curl-radius" min="5" max="50" value="15">
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">
+            <span>Stroke Width</span>
+            <span class="control-value" id="stroke-width-value">0px</span>
+          </div>
+          <input type="range" id="stroke-width" min="0" max="10" value="0">
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">
+            <span>Stroke Color</span>
+          </div>
+          <input type="color" id="stroke-color" value="#ffffff">
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="action-btn" id="clear-btn">Clear All</button>
+        <button class="action-btn primary" id="export-btn">Export</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================
+    // GLSL SHADERS
+    // ============================================================
+    
+    const VERTEX_SHADER = `
+      attribute vec2 a_position;
+      attribute vec2 a_texCoord;
+      
+      uniform vec2 u_resolution;
+      uniform float u_curlAmount;
+      uniform float u_curlRadius;
+      
+      varying vec2 v_texCoord;
+      varying float v_curl;
+      varying float v_shadow;
+      varying vec3 v_normal;
+      varying float v_distFromCurl;
+      
+      const float PI = 3.14159265359;
+      
+      void main() {
+        v_texCoord = a_texCoord;
+        
+        // Curl originates from bottom-right corner, along diagonal
+        vec2 curlOrigin = vec2(1.0, 1.0);
+        vec2 curlAxis = normalize(vec2(-1.0, -1.0)); // diagonal toward top-left
+        
+        // Vector from curl origin to this vertex (in UV space)
+        vec2 toVertex = a_texCoord - curlOrigin;
+        
+        // Distance along curl axis (negative = toward top-left)
+        float distAlongAxis = dot(toVertex, curlAxis);
+        
+        // Curl line position moves based on curl amount
+        // curlAmount 0 = line at corner (no curl)
+        // curlAmount 1 = line at opposite corner (full curl)
+        float curlLinePos = -u_curlAmount * 1.5;
+        
+        // Distance from the curl line
+        float distFromCurl = distAlongAxis - curlLinePos;
+        v_distFromCurl = distFromCurl;
+        
+        vec2 pos = a_position;
+        v_curl = 0.0;
+        v_normal = vec3(0.0, 0.0, 1.0);
+        v_shadow = 0.0;
+        
+        if (distFromCurl > 0.0 && u_curlAmount > 0.001) {
+          // This vertex is in the curled region
+          float radius = u_curlRadius;
+          
+          // Arc length along the cylinder
+          float arcLen = distFromCurl;
+          
+          // Angle around cylinder
+          float theta = arcLen / radius;
+          
+          // Clamp to prevent more than full wrap
+          theta = min(theta, PI);
+          
+          // Calculate cylinder surface position
+          // The cylinder axis is perpendicular to curlAxis
+          vec2 perpAxis = vec2(-curlAxis.y, curlAxis.x);
+          
+          // Height (z) comes out of screen as we wrap
+          float z = radius * (1.0 - cos(theta));
+          
+          // The vertex moves back toward curl line as it wraps
+          float displacement = radius * sin(theta);
+          
+          // New position along the curl axis
+          vec2 newUV = a_texCoord - curlAxis * (distFromCurl - displacement);
+          
+          // Convert UV to position
+          pos = newUV * 2.0 - 1.0;
+          
+          // Calculate normal on cylinder surface
+          v_normal = vec3(
+            -sin(theta) * curlAxis.x,
+            -sin(theta) * curlAxis.y,
+            cos(theta)
+          );
+          
+          // Mark how much this vertex is curled (for back-face detection)
+          v_curl = theta / PI;
+          
+          // Simulate depth with slight scale reduction
+          float depth = 1.0 - z * 0.3;
+          pos *= depth;
+        }
+        
+        // Shadow near curl line (on the flat part)
+        if (distFromCurl < 0.0 && distFromCurl > -0.3) {
+          v_shadow = smoothstep(-0.3, 0.0, distFromCurl) * u_curlAmount;
+        }
+        
+        gl_Position = vec4(pos, 0.0, 1.0);
+      }
+    `;
+    
+    const FRAGMENT_SHADER = `
+      precision mediump float;
+      
+      uniform sampler2D u_image;
+      uniform float u_curlAmount;
+      uniform vec3 u_strokeColor;
+      uniform float u_strokeWidth;
+      uniform vec2 u_texSize;
+      
+      varying vec2 v_texCoord;
+      varying float v_curl;
+      varying float v_shadow;
+      varying vec3 v_normal;
+      varying float v_distFromCurl;
+      
+      const float PI = 3.14159265359;
+      
+      void main() {
+        vec2 uv = v_texCoord;
+        
+        // For the back face, mirror the UVs
+        bool isBack = v_curl > 0.5;
+        
+        if (isBack) {
+          // Mirror across the diagonal
+          vec2 curlOrigin = vec2(1.0, 1.0);
+          vec2 curlAxis = normalize(vec2(-1.0, -1.0));
+          vec2 perpAxis = vec2(-curlAxis.y, curlAxis.x);
+          
+          vec2 toUV = uv - curlOrigin;
+          float perpDist = dot(toUV, perpAxis);
+          
+          // Flip across perpendicular axis
+          uv = uv - 2.0 * perpDist * perpAxis;
+        }
+        
+        // Sample the texture
+        vec4 color = texture2D(u_image, uv);
+        
+        // Discard fully transparent pixels
+        if (color.a < 0.01) {
+          discard;
+        }
+        
+        // Apply stroke (outline) effect
+        if (u_strokeWidth > 0.0) {
+          vec2 pixelSize = 1.0 / u_texSize;
+          float outline = 0.0;
+          
+          for (float x = -1.0; x <= 1.0; x += 1.0) {
+            for (float y = -1.0; y <= 1.0; y += 1.0) {
+              if (x == 0.0 && y == 0.0) continue;
+              vec2 offset = vec2(x, y) * pixelSize * u_strokeWidth;
+              float neighborAlpha = texture2D(u_image, uv + offset).a;
+              outline = max(outline, neighborAlpha);
+            }
+          }
+          
+          if (color.a < 0.5 && outline > 0.5) {
+            color = vec4(u_strokeColor, 1.0);
+          }
+        }
+        
+        // Lighting calculation
+        vec3 lightDir = normalize(vec3(0.2, 0.3, 1.0));
+        float diffuse = max(dot(v_normal, lightDir), 0.0);
+        float lighting = 0.5 + 0.5 * diffuse;
+        
+        if (isBack) {
+          // Back of sticker - darker, grayish paper color
+          vec3 paperBack = vec3(0.35, 0.33, 0.32);
+          
+          // Add subtle noise/texture to back
+          float noise = fract(sin(dot(uv * 100.0, vec2(12.9898, 78.233))) * 43758.5453);
+          paperBack += (noise - 0.5) * 0.05;
+          
+          color.rgb = paperBack * lighting * 0.9;
+        } else {
+          // Front face lighting
+          color.rgb *= lighting;
+        }
+        
+        // Apply shadow on flat part near curl
+        if (v_shadow > 0.0) {
+          color.rgb *= 1.0 - v_shadow * 0.4;
+        }
+        
+        // Slight darkening at the fold edge
+        if (abs(v_distFromCurl) < 0.02 && v_curl > 0.0) {
+          color.rgb *= 0.85;
+        }
+        
+        gl_FragColor = color;
+      }
+    `;
+
+    // ============================================================
+    // WEBGL STICKER RENDERER CLASS
+    // ============================================================
+    
+    class StickerRenderer {
+      constructor(image) {
+        this.image = image;
+        this.canvas = document.createElement('canvas');
+        
+        // Add padding for curl overflow and stroke
+        this.padding = 60;
+        this.canvas.width = image.width + this.padding * 2;
+        this.canvas.height = image.height + this.padding * 2;
+        
+        this.gl = this.canvas.getContext('webgl', {
+          alpha: true,
+          premultipliedAlpha: false,
+          antialias: true
+        });
+        
+        if (!this.gl) {
+          throw new Error('WebGL not supported');
+        }
+        
+        this.curlAmount = 0;
+        this.targetCurl = 0;
+        this.curlRadius = 0.15;
+        this.strokeWidth = 0;
+        this.strokeColor = [1, 1, 1];
+        
+        this.initShaders();
+        this.initBuffers();
+        this.initTexture();
+        this.render();
+      }
+      
+      initShaders() {
+        const gl = this.gl;
+        
+        // Compile vertex shader
+        const vs = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(vs, VERTEX_SHADER);
+        gl.compileShader(vs);
+        if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
+          console.error('Vertex shader error:', gl.getShaderInfoLog(vs));
+        }
+        
+        // Compile fragment shader
+        const fs = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(fs, FRAGMENT_SHADER);
+        gl.compileShader(fs);
+        if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
+          console.error('Fragment shader error:', gl.getShaderInfoLog(fs));
+        }
+        
+        // Link program
+        this.program = gl.createProgram();
+        gl.attachShader(this.program, vs);
+        gl.attachShader(this.program, fs);
+        gl.linkProgram(this.program);
+        
+        if (!gl.getProgramParameter(this.program, gl.LINK_STATUS)) {
+          console.error('Program link error:', gl.getProgramInfoLog(this.program));
+        }
+        
+        // Get locations
+        this.locations = {
+          position: gl.getAttribLocation(this.program, 'a_position'),
+          texCoord: gl.getAttribLocation(this.program, 'a_texCoord'),
+          resolution: gl.getUniformLocation(this.program, 'u_resolution'),
+          image: gl.getUniformLocation(this.program, 'u_image'),
+          curlAmount: gl.getUniformLocation(this.program, 'u_curlAmount'),
+          curlRadius: gl.getUniformLocation(this.program, 'u_curlRadius'),
+          strokeColor: gl.getUniformLocation(this.program, 'u_strokeColor'),
+          strokeWidth: gl.getUniformLocation(this.program, 'u_strokeWidth'),
+          texSize: gl.getUniformLocation(this.program, 'u_texSize')
+        };
+      }
+      
+      initBuffers() {
+        const gl = this.gl;
+        
+        // Calculate normalized coordinates accounting for padding
+        const imgW = this.image.width;
+        const imgH = this.image.height;
+        const canW = this.canvas.width;
+        const canH = this.canvas.height;
+        
+        // Position in clip space (-1 to 1), scaled for image within padded canvas
+        const scaleX = imgW / canW;
+        const scaleY = imgH / canH;
+        
+        // Create a grid of vertices for smooth curling
+        const gridSize = 32;
+        const positions = [];
+        const texCoords = [];
+        const indices = [];
+        
+        for (let y = 0; y <= gridSize; y++) {
+          for (let x = 0; x <= gridSize; x++) {
+            const u = x / gridSize;
+            const v = y / gridSize;
+            
+            // Position in clip space
+            const px = (u * 2 - 1) * scaleX;
+            const py = (v * 2 - 1) * scaleY;
+            
+            positions.push(px, py);
+            texCoords.push(u, v);
+          }
+        }
+        
+        // Create triangle indices
+        for (let y = 0; y < gridSize; y++) {
+          for (let x = 0; x < gridSize; x++) {
+            const i = y * (gridSize + 1) + x;
+            indices.push(
+              i, i + 1, i + gridSize + 1,
+              i + 1, i + gridSize + 2, i + gridSize + 1
+            );
+          }
+        }
+        
+        // Position buffer
+        this.positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+        
+        // Tex coord buffer
+        this.texCoordBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(texCoords), gl.STATIC_DRAW);
+        
+        // Index buffer
+        this.indexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+        
+        this.indexCount = indices.length;
+      }
+      
+      initTexture() {
+        const gl = this.gl;
+        
+        this.texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, this.texture);
+        
+        // Set parameters for non-power-of-2 textures
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        
+        // Upload image
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.image);
+      }
+      
+      setCurl(amount) {
+        this.targetCurl = Math.max(0, Math.min(1, amount));
+      }
+      
+      setCurlRadius(radius) {
+        this.curlRadius = radius;
+      }
+      
+      setStroke(width, color) {
+        this.strokeWidth = width;
+        this.strokeColor = color;
+      }
+      
+      update() {
+        // Spring animation toward target
+        const spring = 0.12;
+        const diff = this.targetCurl - this.curlAmount;
+        this.curlAmount += diff * spring;
+        
+        // Return true if still animating
+        return Math.abs(diff) > 0.001;
+      }
+      
+      render() {
+        const gl = this.gl;
+        
+        gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        
+        gl.useProgram(this.program);
+        
+        // Bind position buffer
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+        gl.enableVertexAttribArray(this.locations.position);
+        gl.vertexAttribPointer(this.locations.position, 2, gl.FLOAT, false, 0, 0);
+        
+        // Bind texcoord buffer
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer);
+        gl.enableVertexAttribArray(this.locations.texCoord);
+        gl.vertexAttribPointer(this.locations.texCoord, 2, gl.FLOAT, false, 0, 0);
+        
+        // Bind index buffer
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
+        
+        // Set uniforms
+        gl.uniform2f(this.locations.resolution, this.canvas.width, this.canvas.height);
+        gl.uniform1f(this.locations.curlAmount, this.curlAmount);
+        gl.uniform1f(this.locations.curlRadius, this.curlRadius);
+        gl.uniform3fv(this.locations.strokeColor, this.strokeColor);
+        gl.uniform1f(this.locations.strokeWidth, this.strokeWidth);
+        gl.uniform2f(this.locations.texSize, this.image.width, this.image.height);
+        
+        // Bind texture
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.texture);
+        gl.uniform1i(this.locations.image, 0);
+        
+        // Draw
+        gl.drawElements(gl.TRIANGLES, this.indexCount, gl.UNSIGNED_SHORT, 0);
+      }
+      
+      destroy() {
+        const gl = this.gl;
+        gl.deleteTexture(this.texture);
+        gl.deleteBuffer(this.positionBuffer);
+        gl.deleteBuffer(this.texCoordBuffer);
+        gl.deleteBuffer(this.indexBuffer);
+        gl.deleteProgram(this.program);
+      }
+    }
+
+    // ============================================================
+    // APPLICATION STATE
+    // ============================================================
+    
+    const state = {
+      gallery: [],
+      stickers: [],
+      config: {
+        rotation: 15,
+        hoverPeel: 25,
+        activePeel: 65,
+        curlRadius: 0.15,
+        strokeWidth: 0,
+        strokeColor: '#ffffff'
+      }
+    };
+
+    // ============================================================
+    // DOM REFERENCES
+    // ============================================================
+    
+    const container = document.getElementById('canvas-container');
+    const gallery = document.getElementById('gallery');
+    const uploadBtn = document.getElementById('upload-btn');
+    const fileInput = document.getElementById('file-input');
+    const emptyState = document.getElementById('empty-state');
+
+    const controls = {
+      rotation: document.getElementById('rotation'),
+      hoverPeel: document.getElementById('hover-peel'),
+      activePeel: document.getElementById('active-peel'),
+      curlRadius: document.getElementById('curl-radius'),
+      strokeWidth: document.getElementById('stroke-width'),
+      strokeColor: document.getElementById('stroke-color')
+    };
+
+    const values = {
+      rotation: document.getElementById('rotation-value'),
+      hoverPeel: document.getElementById('hover-peel-value'),
+      activePeel: document.getElementById('active-peel-value'),
+      curlRadius: document.getElementById('curl-radius-value'),
+      strokeWidth: document.getElementById('stroke-width-value')
+    };
+
+    // ============================================================
+    // FILE HANDLING
+    // ============================================================
+    
+    uploadBtn.addEventListener('click', () => fileInput.click());
+    
+    uploadBtn.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadBtn.style.borderColor = 'var(--accent)';
+    });
+
+    uploadBtn.addEventListener('dragleave', () => {
+      uploadBtn.style.borderColor = '#444';
+    });
+
+    uploadBtn.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadBtn.style.borderColor = '#444';
+      handleFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+    function handleFiles(files) {
+      Array.from(files).forEach(file => {
+        if (file.type === 'image/png' || file.type === 'image/svg+xml') {
+          const reader = new FileReader();
+          reader.onload = (e) => addToGallery(e.target.result, file.name);
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+
+    function addToGallery(dataUrl, name) {
+      const id = Date.now() + Math.random();
+      state.gallery.push({ id, dataUrl, name });
+      renderGallery();
+    }
+
+    function renderGallery() {
+      gallery.innerHTML = state.gallery.map(item => `
+        <div class="gallery-item" data-id="${item.id}">
+          <img src="${item.dataUrl}" alt="${item.name}">
+          <button class="delete-btn" data-delete="${item.id}">×</button>
+        </div>
+      `).join('');
+
+      gallery.querySelectorAll('.gallery-item').forEach(item => {
+        item.addEventListener('mousedown', startDragFromGallery);
+        item.addEventListener('touchstart', startDragFromGallery, { passive: false });
+      });
+
+      gallery.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = parseFloat(btn.dataset.delete);
+          state.gallery = state.gallery.filter(s => s.id !== id);
+          renderGallery();
+        });
+      });
+    }
+
+    // ============================================================
+    // DRAG FROM GALLERY
+    // ============================================================
+    
+    let dragGhost = null;
+    let draggedItem = null;
+    let isDragging = false;
+
+    function startDragFromGallery(e) {
+      if (e.target.classList.contains('delete-btn')) return;
+      e.preventDefault();
+      
+      const item = e.currentTarget;
+      const id = parseFloat(item.dataset.id);
+      const galleryItem = state.gallery.find(s => s.id === id);
+      if (!galleryItem) return;
+
+      isDragging = true;
+      draggedItem = galleryItem;
+
+      dragGhost = document.createElement('div');
+      dragGhost.className = 'drag-ghost';
+      dragGhost.innerHTML = `<img src="${galleryItem.dataUrl}">`;
+      document.body.appendChild(dragGhost);
+
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      dragGhost.style.left = clientX - 50 + 'px';
+      dragGhost.style.top = clientY - 50 + 'px';
+
+      document.addEventListener('mousemove', onDragMove);
+      document.addEventListener('mouseup', onDragEnd);
+      document.addEventListener('touchmove', onDragMove, { passive: false });
+      document.addEventListener('touchend', onDragEnd);
+    }
+
+    function onDragMove(e) {
+      if (!isDragging || !dragGhost) return;
+      e.preventDefault();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      dragGhost.style.left = clientX - 50 + 'px';
+      dragGhost.style.top = clientY - 50 + 'px';
+    }
+
+    function onDragEnd(e) {
+      if (!isDragging) return;
+
+      const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+      const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+
+      const rect = container.getBoundingClientRect();
+      if (
+        clientX >= rect.left &&
+        clientX <= rect.right &&
+        clientY >= rect.top &&
+        clientY <= rect.bottom &&
+        draggedItem
+      ) {
+        placeSticker(
+          draggedItem.dataUrl,
+          clientX - rect.left,
+          clientY - rect.top
+        );
+      }
+
+      if (dragGhost) {
+        dragGhost.remove();
+        dragGhost = null;
+      }
+      isDragging = false;
+      draggedItem = null;
+
+      document.removeEventListener('mousemove', onDragMove);
+      document.removeEventListener('mouseup', onDragEnd);
+      document.removeEventListener('touchmove', onDragMove);
+      document.removeEventListener('touchend', onDragEnd);
+    }
+
+    // ============================================================
+    // PLACE STICKER
+    // ============================================================
+    
+    function placeSticker(dataUrl, x, y) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const renderer = new StickerRenderer(img);
+        const id = Date.now() + Math.random();
+        const rotation = (Math.random() - 0.5) * 2 * state.config.rotation;
+        
+        // Create DOM wrapper
+        const stickerEl = document.createElement('div');
+        stickerEl.className = 'sticker';
+        stickerEl.dataset.id = id;
+        
+        // Position centered on drop point
+        const offsetX = renderer.canvas.width / 2;
+        const offsetY = renderer.canvas.height / 2;
+        stickerEl.style.left = (x - offsetX) + 'px';
+        stickerEl.style.top = (y - offsetY) + 'px';
+        stickerEl.style.transform = `rotate(${rotation}deg)`;
+        
+        stickerEl.appendChild(renderer.canvas);
+        
+        // Delete button
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'sticker-delete';
+        deleteBtn.textContent = '×';
+        deleteBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          removeSticker(id);
+        });
+        stickerEl.appendChild(deleteBtn);
+        
+        container.appendChild(stickerEl);
+        
+        // Store sticker data
+        const stickerData = {
+          id,
+          element: stickerEl,
+          renderer,
+          rotation,
+          isHovered: false,
+          isDragging: false,
+          placing: true
+        };
+        
+        state.stickers.push(stickerData);
+        
+        // Apply initial settings
+        renderer.setCurlRadius(state.config.curlRadius);
+        renderer.setStroke(
+          state.config.strokeWidth,
+          hexToRgb(state.config.strokeColor)
+        );
+        
+        // Start with curl for "placing" animation
+        renderer.curlAmount = 0.8;
+        renderer.targetCurl = 0;
+        
+        setTimeout(() => {
+          stickerData.placing = false;
+        }, 600);
+        
+        // Setup interaction handlers
+        setupStickerInteraction(stickerData);
+        
+        updateEmptyState();
+      };
+      img.src = dataUrl;
+    }
+
+    function removeSticker(id) {
+      const idx = state.stickers.findIndex(s => s.id === id);
+      if (idx !== -1) {
+        const sticker = state.stickers[idx];
+        sticker.renderer.destroy();
+        sticker.element.remove();
+        state.stickers.splice(idx, 1);
+        updateEmptyState();
+      }
+    }
+
+    function updateEmptyState() {
+      emptyState.style.display = state.stickers.length > 0 ? 'none' : 'block';
+    }
+
+    // ============================================================
+    // STICKER INTERACTION
+    // ============================================================
+    
+    function setupStickerInteraction(sticker) {
+      const el = sticker.element;
+      let startX, startY, initialX, initialY;
+      
+      el.addEventListener('mouseenter', () => {
+        if (!sticker.isDragging && !sticker.placing) {
+          sticker.isHovered = true;
+          sticker.renderer.setCurl(state.config.hoverPeel / 100);
+        }
+      });
+      
+      el.addEventListener('mouseleave', () => {
+        if (!sticker.isDragging) {
+          sticker.isHovered = false;
+          sticker.renderer.setCurl(0);
+        }
+      });
+      
+      function onMouseDown(e) {
+        if (e.target.classList.contains('sticker-delete')) return;
+        e.preventDefault();
+        
+        sticker.isDragging = true;
+        sticker.renderer.setCurl(state.config.activePeel / 100);
+        
+        // Bring to front
+        el.style.zIndex = Date.now();
+        
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        startX = clientX;
+        startY = clientY;
+        initialX = el.offsetLeft;
+        initialY = el.offsetTop;
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        document.addEventListener('touchmove', onMouseMove, { passive: false });
+        document.addEventListener('touchend', onMouseUp);
+      }
+
+      function onMouseMove(e) {
+        if (!sticker.isDragging) return;
+        e.preventDefault();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        el.style.left = initialX + (clientX - startX) + 'px';
+        el.style.top = initialY + (clientY - startY) + 'px';
+      }
+
+      function onMouseUp() {
+        sticker.isDragging = false;
+        sticker.renderer.setCurl(sticker.isHovered ? state.config.hoverPeel / 100 : 0);
+        
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        document.removeEventListener('touchmove', onMouseMove);
+        document.removeEventListener('touchend', onMouseUp);
+      }
+
+      el.addEventListener('mousedown', onMouseDown);
+      el.addEventListener('touchstart', onMouseDown, { passive: false });
+    }
+
+    // ============================================================
+    // ANIMATION LOOP
+    // ============================================================
+    
+    function animate() {
+      let needsRender = false;
+      
+      for (const sticker of state.stickers) {
+        if (sticker.renderer.update()) {
+          needsRender = true;
+        }
+        sticker.renderer.render();
+      }
+      
+      requestAnimationFrame(animate);
+    }
+    
+    animate();
+
+    // ============================================================
+    // CONTROLS
+    // ============================================================
+    
+    controls.rotation.addEventListener('input', (e) => {
+      state.config.rotation = parseInt(e.target.value);
+      values.rotation.textContent = state.config.rotation + '°';
+    });
+
+    controls.hoverPeel.addEventListener('input', (e) => {
+      state.config.hoverPeel = parseInt(e.target.value);
+      values.hoverPeel.textContent = state.config.hoverPeel + '%';
+    });
+
+    controls.activePeel.addEventListener('input', (e) => {
+      state.config.activePeel = parseInt(e.target.value);
+      values.activePeel.textContent = state.config.activePeel + '%';
+    });
+
+    controls.curlRadius.addEventListener('input', (e) => {
+      state.config.curlRadius = parseInt(e.target.value) / 100;
+      values.curlRadius.textContent = state.config.curlRadius.toFixed(2);
+      state.stickers.forEach(s => s.renderer.setCurlRadius(state.config.curlRadius));
+    });
+
+    controls.strokeWidth.addEventListener('input', (e) => {
+      state.config.strokeWidth = parseInt(e.target.value);
+      values.strokeWidth.textContent = state.config.strokeWidth + 'px';
+      const rgb = hexToRgb(state.config.strokeColor);
+      state.stickers.forEach(s => s.renderer.setStroke(state.config.strokeWidth, rgb));
+    });
+
+    controls.strokeColor.addEventListener('input', (e) => {
+      state.config.strokeColor = e.target.value;
+      const rgb = hexToRgb(state.config.strokeColor);
+      state.stickers.forEach(s => s.renderer.setStroke(state.config.strokeWidth, rgb));
+    });
+
+    document.getElementById('clear-btn').addEventListener('click', () => {
+      [...state.stickers].forEach(s => removeSticker(s.id));
+    });
+
+    document.getElementById('export-btn').addEventListener('click', exportCanvas);
+
+    // ============================================================
+    // EXPORT
+    // ============================================================
+    
+    async function exportCanvas() {
+      const exportCanvas = document.createElement('canvas');
+      const rect = container.getBoundingClientRect();
+      exportCanvas.width = rect.width * 2;
+      exportCanvas.height = rect.height * 2;
+      const ctx = exportCanvas.getContext('2d');
+      
+      // Fill background
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+      
+      // Sort stickers by z-index and draw each
+      const sortedStickers = [...state.stickers].sort((a, b) => {
+        return (parseInt(a.element.style.zIndex) || 0) - (parseInt(b.element.style.zIndex) || 0);
+      });
+      
+      for (const sticker of sortedStickers) {
+        const el = sticker.element;
+        const canvas = sticker.renderer.canvas;
+        
+        const x = el.offsetLeft * 2;
+        const y = el.offsetTop * 2;
+        const rotation = sticker.rotation;
+        
+        ctx.save();
+        ctx.translate(x + canvas.width, y + canvas.height);
+        ctx.rotate(rotation * Math.PI / 180);
+        ctx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
+        ctx.restore();
+      }
+      
+      const link = document.createElement('a');
+      link.download = 'sticker-book.png';
+      link.href = exportCanvas.toDataURL();
+      link.click();
+    }
+
+    // ============================================================
+    // UTILITIES
+    // ============================================================
+    
+    function hexToRgb(hex) {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? [
+        parseInt(result[1], 16) / 255,
+        parseInt(result[2], 16) / 255,
+        parseInt(result[3], 16) / 255
+      ] : [1, 1, 1];
+    }
+
+    // Initialize
+    updateEmptyState();
+  </script>
+</body>
+</html>

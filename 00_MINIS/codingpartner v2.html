@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Art Partner - Honeycomb Edition</title>
+    <style>
+        :root { --primary: #4CAF50; --primary-hover: #45a049; --bg: #f5f5f5; --panel: #ffffff; --border: #ddd; }
+        body { font-family: Arial, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .container { max-width: 1200px; width: 100%; display: flex; flex-direction: column; gap: 20px; }
+        .controls { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; }
+        .section { background: var(--panel); padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); min-width: 200px; }
+        .section h2 { font-size: 16px; margin-top: 0; margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+        button { background-color: var(--primary); color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 14px; transition: background 0.2s; }
+        button:hover { background-color: var(--primary-hover); }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        button.active { outline: 3px solid #2196F3; }
+        .palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+        .swatch { width: 25px; height: 25px; border: 1px solid #ccc; cursor: pointer; }
+        .swatch.active { border: 2px solid black; }
+        #image-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; max-height: 150px; overflow: hidden; margin-top: 10px; }
+        .img-thumb { width: 50px; height: 50px; object-fit: cover; cursor: pointer; border: 1px solid #ddd; }
+        .img-thumb.active { border: 2px solid #2196F3; }
+        #canvas-wrapper { position: relative; background: var(--panel); padding: 40px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); min-height: 600px; display: flex; justify-content: center; align-items: center; }
+        #grid-container { position: relative; background-color: #ddd; width: 500px; height: 500px; user-select: none; }
+        .pixel { width: 100%; height: 100%; cursor: pointer; box-sizing: border-box; background-size: cover; background-position: center; transition: opacity 0.1s; }
+        .hide-grid-lines { background-color: transparent !important; }
+        .hide-grid-lines .pixel { border: none !important; }
+        .handle { position: absolute; background: transparent; z-index: 10; }
+        .handle:hover { background: rgba(0, 0, 255, 0.2); }
+        .handle.row-handle { height: 20px; cursor: ns-resize; left: -20px; right: -20px; }
+        .handle.col-handle { width: 20px; cursor: ew-resize; top: -20px; bottom: -20px; }
+        .guide { position: absolute; background: rgba(0, 0, 255, 0.5); pointer-events: none; z-index: 5; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="controls">
+        <div class="section">
+            <h2>Tools</h2>
+            <div style="display:flex; gap: 5px; flex-wrap: wrap;">
+                <button onclick="setTool('draw')" id="btn-draw" class="active">Draw</button>
+                <button onclick="setTool('erase')" id="btn-erase">Erase</button>
+                <button onclick="setTool('fill')" id="btn-fill">Fill</button>
+                <button onclick="clearGrid()">Clear All</button>
+            </div>
+            <div style="margin-top: 10px;">
+                <button onclick="undo()" id="btn-undo">Undo</button>
+                <button onclick="redo()" id="btn-redo">Redo</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Grid Type</h2>
+            <select id="grid-type-select" onchange="changeGridType(this.value)">
+                <option value="square">Square</option>
+                <option value="circle">Circle</option>
+                <option value="hex">Honeycomb (Hex)</option>
+                <option value="squircle">Squircle</option>
+            </select>
+            <select id="grid-size-select" onchange="changeGridSize(parseInt(this.value))">
+                <option value="8">8x8</option>
+                <option value="16" selected>16x16</option>
+                <option value="32">32x32</option>
+            </select>
+            <label style="display:block; margin-top:5px;"><input type="checkbox" id="hide-lines" onchange="toggleGridLines()"> Hide Lines</label>
+        </div>
+
+        <div class="section">
+            <h2>Proportions</h2>
+            <label><input type="checkbox" id="enable-proportions" onchange="renderGrid()"> Enable</label>
+            <div style="margin-top:5px;">
+                <input type="range" id="rand-intensity" min="1" max="5" value="3">
+                <button onclick="randomizeProportions()">Randomize</button>
+                <button onclick="resetProportions()">Reset</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Symmetry</h2>
+            <label><input type="checkbox" id="sym-v"> Vertical</label><br>
+            <label><input type="checkbox" id="sym-h"> Horizontal</label>
+        </div>
+
+        <div class="section">
+            <h2>Colors</h2>
+            <div class="palette" id="palette"></div>
+            <div style="margin-top:10px; display:flex; gap:5px;">
+                <input type="color" id="custom-color" value="#ff0000">
+                <button onclick="addCustomColor()">Add</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Images</h2>
+            <input type="file" id="img-upload" multiple accept="image/*" onchange="handleImageUpload(event)">
+            <div id="image-container"></div>
+        </div>
+    </div>
+
+    <div id="canvas-wrapper">
+        <div id="grid-container"></div>
+    </div>
+
+    <div style="text-align:center; padding-bottom: 40px;">
+        <button onclick="exportPNG()" style="font-size: 18px; padding: 12px 24px;">Export PNG</button>
+    </div>
+</div>
+
+<script>
+    let gridSize = 16;
+    let gridType = 'square';
+    let gridData = [];
+    let rowSizes = [];
+    let colSizes = [];
+    let currentTool = 'draw';
+    let currentColor = '#000000';
+    let currentImageId = null;
+    let images = [];
+    let history = [];
+    let historyIndex = -1;
+    let isMouseDown = false;
+    let resizingInfo = null;
+
+    const defaultSwatches = ['#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffa500', '#800080', '#808080', '#006400'];
+
+    function init() {
+        initPalette();
+        changeGridSize(16);
+        saveHistory();
+    }
+
+    function initPalette() {
+        const container = document.getElementById('palette');
+        defaultSwatches.forEach(color => createSwatch(color));
+        selectSwatch(document.querySelector('.swatch'));
+    }
+
+    function createSwatch(color) {
+        const s = document.createElement('div');
+        s.className = 'swatch';
+        s.style.backgroundColor = color;
+        s.onclick = () => selectSwatch(s);
+        document.getElementById('palette').appendChild(s);
+    }
+
+    function selectSwatch(el) {
+        document.querySelectorAll('.swatch, .img-thumb').forEach(x => x.classList.remove('active'));
+        el.classList.add('active');
+        currentColor = el.style.backgroundColor;
+        currentImageId = null;
+    }
+
+    function changeGridSize(newSize) {
+        const oldData = JSON.parse(JSON.stringify(gridData));
+        const oldSize = gridSize;
+        gridSize = newSize;
+        gridData = Array.from({ length: gridSize }, () => Array.from({ length: gridSize }, () => ({ filled: false, color: '', imageId: null })));
+        for(let r=0; r < Math.min(oldSize, gridSize); r++) {
+            for(let c=0; c < Math.min(oldSize, gridSize); c++) {
+                if(oldData[r] && oldData[r][c]) gridData[r][c] = oldData[r][c];
+            }
+        }
+        rowSizes = new Array(gridSize).fill(1.0);
+        colSizes = new Array(gridSize).fill(1.0);
+        renderGrid();
+    }
+
+    function changeGridType(type) { gridType = type; renderGrid(); }
+
+    function renderGrid() {
+        const container = document.getElementById('grid-container');
+        container.innerHTML = '';
+        const useProp = document.getElementById('enable-proportions').checked;
+        const totalRowProp = rowSizes.reduce((a,b) => a+b, 0);
+        const totalColProp = colSizes.reduce((a,b) => a+b, 0);
+
+        let currentTop = 0;
+        for (let r = 0; r < gridSize; r++) {
+            let currentLeft = 0;
+            const hPct = (rowSizes[r] / totalRowProp) * 100;
+            for (let c = 0; c < gridSize; c++) {
+                const wPct = (colSizes[c] / totalColProp) * 100;
+                const pixel = document.createElement('div');
+                pixel.className = 'pixel';
+                pixel.dataset.r = r; pixel.dataset.c = c;
+                pixel.style.position = 'absolute';
+
+                if (gridType === 'hex') {
+                    // Honeycomb Logic: Stagger odd columns and compress horizontal gap
+                    const hexWPct = wPct * 1.33; // Expand width to account for 25% overlap
+                    const hexHPct = hPct;
+                    const xOffset = currentLeft * 0.75; // Compress horizontally
+                    const yOffset = (c % 2 === 1) ? (currentTop + hPct / 2) : currentTop;
+                    
+                    pixel.style.width = hexWPct + '%';
+                    pixel.style.height = hexHPct + '%';
+                    pixel.style.left = xOffset + '%';
+                    pixel.style.top = yOffset + '%';
+                } else {
+                    pixel.style.width = wPct + '%';
+                    pixel.style.height = hPct + '%';
+                    pixel.style.left = currentLeft + '%';
+                    pixel.style.top = currentTop + '%';
+                }
+
+                applyPixelStyle(pixel, r, c);
+                pixel.onmousedown = () => handlePixelAction(r, c);
+                pixel.onmouseover = () => { if(isMouseDown) handlePixelAction(r, c); };
+                container.appendChild(pixel);
+                currentLeft += wPct;
+            }
+            currentTop += hPct;
+        }
+        if(useProp) renderHandles();
+        renderGuides();
+    }
+
+    function applyPixelStyle(el, r, c) {
+        const data = gridData[r][c];
+        const hide = document.getElementById('hide-lines').checked;
+        el.style.backgroundColor = data.filled ? data.color : (hide ? 'transparent' : '#fff');
+        el.style.border = (hide || gridType !== 'square') ? 'none' : '1px solid #eee';
+        if (data.imageId) {
+            const img = images.find(i => i.id === data.imageId);
+            el.style.backgroundImage = `url(${img.url})`;
+        } else el.style.backgroundImage = 'none';
+
+        if (gridType === 'circle') el.style.borderRadius = '50%';
+        else if (gridType === 'hex') el.style.clipPath = 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
+        else if (gridType === 'squircle') el.style.borderRadius = '30%';
+        else el.style.borderRadius = '0';
+    }
+
+    function randomizeProportions() {
+    const intensity = parseInt(document.getElementById('rand-intensity').value);
+    const container = document.getElementById('grid-container');
+    const rect = container.getBoundingClientRect();
+
+    // 1. Generate chaotic raw values using a bucket system
+    const generateChaoticValue = () => {
+        const roll = Math.random();
+        
+        // High Intensity (5) creates more "Massive" and "Tiny" outliers
+        // Low Intensity (1) keeps most things "Regular"
+        const chanceOfOutlier = intensity * 0.15; 
+
+        if (roll < chanceOfOutlier / 2) {
+            // "Massive" Bucket
+            return 5.0 + (Math.random() * intensity * 4); 
+        } else if (roll < chanceOfOutlier) {
+            // "Tiny" Bucket
+            return 0.1 + (Math.random() * 0.3);
+        } else {
+            // "Regular" Bucket
+            return 0.8 + (Math.random() * 1.2);
+        }
+    };
+
+    // Initialize arrays with chaotic values
+    let newRows = Array.from({ length: gridSize }, () => generateChaoticValue());
+    let newCols = Array.from({ length: gridSize }, () => generateChaoticValue());
+
+    // 2. Enforce the 5px Minimum Constraint
+    // We calculate the minimum proportion value needed based on container pixels
+    const enforceMinPixels = (arr, dimension) => {
+        let currentSum = arr.reduce((a, b) => a + b, 0);
+        // Minimum allowed proportion for one cell to be at least 5px
+        const minAllowed = (5 / dimension) * currentSum;
+        
+        return arr.map(val => Math.max(val, minAllowed));
+    };
+
+    rowSizes = enforceMinPixels(newRows, rect.height);
+    colSizes = enforceMinPixels(newCols, rect.width);
+
+    // 3. Apply Symmetry if active
+    if (document.getElementById('sym-v').checked) colSizes = mirrorArray(colSizes);
+    if (document.getElementById('sym-h').checked) rowSizes = mirrorArray(rowSizes);
+
+    renderGrid();
+    saveHistory();
+}
+
+    // (Remaining functions: handlePixelAction, floodFill, Image upload, History, Export, etc. 
+    // carried over from previous turn but integrated with new Hex logic)
+    
+    function setTool(t) {
+        currentTool = t;
+        document.querySelectorAll('.section button').forEach(b => b.classList.remove('active'));
+        document.getElementById('btn-' + t).classList.add('active');
+    }
+
+    function handlePixelAction(r, c) {
+        if(currentTool === 'fill') {
+            floodFill(r, c, gridData[r][c].color, gridData[r][c].filled);
+            saveHistory();
+            return;
+        }
+        const pixels = getSymmetricPixels(r, c);
+        pixels.forEach(p => {
+            const cell = gridData[p.r][p.c];
+            if(currentTool === 'draw') { cell.filled = true; cell.color = currentColor; cell.imageId = currentImageId; }
+            else if(currentTool === 'erase') { cell.filled = false; cell.imageId = null; }
+            updatePixelDOM(p.r, p.c);
+        });
+    }
+
+    function getSymmetricPixels(r, c) {
+        let pts = [{r, c}];
+        if(document.getElementById('sym-v').checked) pts.push({r, c: gridSize - 1 - c});
+        if(document.getElementById('sym-h').checked) pts.push({r: gridSize - 1 - r, c});
+        return pts;
+    }
+
+    function updatePixelDOM(r, c) {
+        const el = document.querySelector(`.pixel[data-r="${r}"][data-c="${c}"]`);
+        if(el) applyPixelStyle(el, r, c);
+    }
+
+    function floodFill(r, c, tarCol, tarFil) {
+        if(r < 0 || r >= gridSize || c < 0 || c >= gridSize) return;
+        const cell = gridData[r][c];
+        if(cell.filled === (currentTool==='fill') && cell.color === currentColor && !currentImageId) return;
+        if(cell.filled !== tarFil || cell.color !== tarCol) return;
+        cell.filled = true; cell.color = currentColor; cell.imageId = currentImageId;
+        updatePixelDOM(r, c);
+        floodFill(r+1, c, tarCol, tarFil); floodFill(r-1, c, tarCol, tarFil);
+        floodFill(r, c+1, tarCol, tarFil); floodFill(r, c-1, tarCol, tarFil);
+    }
+
+    async function handleImageUpload(e) {
+        const files = Array.from(e.target.files);
+        images = [];
+        document.getElementById('image-container').innerHTML = '';
+        for (const file of files) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height;
+                    if(w > 300 || h > 300) { const ratio = Math.min(300/w, 300/h); w *= ratio; h *= ratio; }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    const id = 'img_' + Math.random().toString(36).substr(2, 9);
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                    images.push({id, url: dataUrl});
+                    const thumb = document.createElement('img');
+                    thumb.src = dataUrl; thumb.className = 'img-thumb';
+                    thumb.onclick = () => selectImage(id, thumb);
+                    document.getElementById('image-container').appendChild(thumb);
+                    if(file === files[files.length-1]) selectImage(id, thumb);
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function selectImage(id, el) {
+        document.querySelectorAll('.swatch, .img-thumb').forEach(x => x.classList.remove('active'));
+        el.classList.add('active');
+        currentImageId = id; currentColor = 'transparent';
+    }
+
+    function saveHistory() {
+        history = history.slice(0, historyIndex + 1);
+        history.push(JSON.stringify({gridData, rowSizes, colSizes, gridType, gridSize}));
+        if(history.length > 30) history.shift(); else historyIndex++;
+        updateHistoryButtons();
+    }
+
+    function undo() { if(historyIndex > 0) { historyIndex--; loadHistoryState(); } }
+    function redo() { if(historyIndex < history.length - 1) { historyIndex++; loadHistoryState(); } }
+    function updateHistoryButtons() {
+        document.getElementById('btn-undo').disabled = historyIndex <= 0;
+        document.getElementById('btn-redo').disabled = historyIndex >= history.length - 1;
+    }
+    function loadHistoryState() {
+        const s = JSON.parse(history[historyIndex]);
+        gridData = s.gridData; rowSizes = s.rowSizes; colSizes = s.colSizes;
+        gridType = s.gridType; gridSize = s.gridSize;
+        renderGrid();
+    }
+
+    function renderHandles() {
+        const container = document.getElementById('grid-container');
+        const totalColProp = colSizes.reduce((a,b) => a+b, 0);
+        let leftAccum = 0;
+        for(let i=1; i<gridSize; i++) {
+            leftAccum += (colSizes[i-1]/totalColProp) * 100;
+            const h = document.createElement('div');
+            h.className = 'handle col-handle'; h.style.left = `calc(${leftAccum}% - 10px)`;
+            container.appendChild(h);
+        }
+    }
+
+    function resetProportions() { rowSizes.fill(1.0); colSizes.fill(1.0); renderGrid(); saveHistory(); }
+    function clearGrid() { gridData.forEach(r => r.forEach(c => {c.filled = false; c.imageId = null;})); renderGrid(); saveHistory(); }
+    function toggleGridLines() { document.getElementById('grid-container').classList.toggle('hide-grid-lines'); }
+    function mirrorArray(arr) { const half = Math.floor(arr.length/2); for(let i=0; i<half; i++) arr[arr.length-1-i] = arr[i]; return arr; }
+    function renderGuides() { /* Similar to previous turn */ }
+
+    window.onmousedown = () => isMouseDown = true;
+    window.onmouseup = () => isMouseDown = false;
+
+    init();
+</script>
+</body>
+</html>

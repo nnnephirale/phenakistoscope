@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Halftone Studio v5.3</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Custom Scrollbar for Sidebar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        
+        /* Canvas Wrapper Logic */
+        #canvas-wrapper {
+            background-image: 
+                linear-gradient(45deg, #e2e8f0 25%, transparent 25%), 
+                linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #e2e8f0 75%), 
+                linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        /* Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px; width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            margin-top: -6px;
+            cursor: pointer;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px;
+            background: #334155;
+            border-radius: 2px;
+        }
+
+        /* Color Picker Custom Styles */
+        .cp-saturation {
+            background: linear-gradient(to bottom, transparent, #000), linear-gradient(to right, #fff, rgba(255,255,255,0));
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 h-screen flex overflow-hidden selection:bg-blue-500 selection:text-white">
+
+    <aside class="w-[20rem] flex-shrink-0 flex flex-col border-r border-slate-700 bg-slate-800 z-20 shadow-xl">
+        <div class="p-4 border-b border-slate-700 bg-slate-900">
+            <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+                Halftone Studio <span class="text-xs font-normal text-slate-400 opacity-75">v5.3</span>
+            </h1>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4 space-y-6">
+            
+            <div class="space-y-3">
+                <div class="flex items-center justify-between group cursor-pointer" onclick="toggleSection('sec-img')">
+                    <h2 class="text-xs uppercase tracking-wider font-semibold text-slate-400">Base Image</h2>
+                    <span class="text-slate-500 text-xs">▼</span>
+                </div>
+                <div id="sec-img" class="space-y-3">
+                    <label class="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-600 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-slate-700/50 transition-colors">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                            <svg class="w-6 h-6 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            <p class="text-xs text-slate-400">Drop or Click to Load</p>
+                        </div>
+                        <input type="file" id="fileInput" class="hidden" accept="image/*" />
+                    </label>
+                </div>
+            </div>
+
+            <hr class="border-slate-700">
+
+            <div class="space-y-4">
+                <div class="flex items-center justify-between cursor-pointer" onclick="toggleSection('sec-phys')">
+                    <h2 class="text-xs uppercase tracking-wider font-semibold text-slate-400">Physics & Geometry</h2>
+                    <span class="text-slate-500 text-xs">▼</span>
+                </div>
+                <div id="sec-phys" class="space-y-4">
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-xs text-slate-300">Dot Scale (LPI)</label>
+                            <span id="val-scale" class="text-xs font-mono text-blue-400">12</span>
+                        </div>
+                        <input type="range" id="inp-scale" min="4" max="50" step="1" value="12" class="w-full">
+                    </div>
+                     <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-xs text-slate-300">Contrast (Curve)</label>
+                            <span id="val-contrast" class="text-xs font-mono text-blue-400">1.0</span>
+                        </div>
+                        <input type="range" id="inp-contrast" min="0.1" max="3.0" step="0.1" value="1.0" class="w-full">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs text-slate-300">Grid Mode</label>
+                        <select id="inp-mode" class="bg-slate-700 text-xs border border-slate-600 rounded px-2 py-1 focus:outline-none focus:border-blue-500">
+                            <option value="rosette">Rosette (Rotated)</option>
+                            <option value="straight">Straight (90°)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="border-slate-700">
+
+            <div class="space-y-4">
+                <div class="flex items-center justify-between cursor-pointer" onclick="toggleSection('sec-ink')">
+                    <h2 class="text-xs uppercase tracking-wider font-semibold text-slate-400">Ink & Bleed</h2>
+                    <span class="text-slate-500 text-xs">▼</span>
+                </div>
+                <div id="sec-ink" class="space-y-4">
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-xs text-slate-300">Ink Bleed (Irregularity)</label>
+                            <span id="val-bleed" class="text-xs font-mono text-blue-400">0%</span>
+                        </div>
+                        <input type="range" id="inp-bleed" min="0" max="100" step="1" value="0" class="w-full">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs text-slate-300">Fill Highlights (Min Dot)</label>
+                        <input type="checkbox" id="inp-highlight" class="w-4 h-4 rounded bg-slate-700 border-slate-500 text-blue-500 focus:ring-0">
+                    </div>
+                </div>
+            </div>
+
+            <hr class="border-slate-700">
+
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xs uppercase tracking-wider font-semibold text-slate-400">Paper Stock</h2>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div id="swatch-paper" class="w-10 h-10 rounded border border-slate-500 cursor-pointer shadow-sm bg-white" onclick="openColorPicker(event, 'paper')"></div>
+                    <div class="text-xs text-slate-400">Background Color</div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="p-4 bg-slate-900 border-t border-slate-700 space-y-2">
+            <button onclick="app.download()" class="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded shadow transition-transform active:scale-95">
+                Export High-Res PNG
+            </button>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col relative bg-slate-200 overflow-hidden">
+        <div class="h-12 bg-white border-b border-slate-300 flex items-center px-4 justify-between z-10 shadow-sm">
+            <div class="flex items-center gap-4">
+                <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Viewport</span>
+                <select id="inp-zoom" onchange="app.setZoom(this.value)" class="bg-slate-100 text-slate-700 text-xs font-mono border border-slate-300 rounded px-2 py-1 outline-none">
+                    <option value="0">FIT</option>
+                    <option value="0.5">50%</option>
+                    <option value="1">100%</option>
+                    <option value="2">200%</option>
+                    <option value="4">400%</option>
+                </select>
+            </div>
+            <div class="text-xs text-slate-400" id="render-stats">Wait...</div>
+        </div>
+
+        <div id="canvas-wrapper" class="flex-1 flex items-center justify-center overflow-hidden relative cursor-grab active:cursor-grabbing">
+            <canvas id="mainCanvas" class="shadow-2xl"></canvas>
+        </div>
+    </main>
+
+    <div id="color-picker" class="hidden fixed z-50 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl p-3 w-64" style="top: 0; left: 0;">
+        <div id="cp-sb" class="w-full h-32 bg-red-500 relative cursor-crosshair rounded mb-3 cp-saturation">
+            <div id="cp-sb-thumb" class="w-3 h-3 border border-white rounded-full absolute pointer-events-none transform -translate-x-1/2 -translate-y-1/2" style="top:0; left:100%;"></div>
+        </div>
+        <div id="cp-hue" class="w-full h-3 rounded mb-3 relative cursor-pointer" style="background: linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%);">
+            <div id="cp-hue-thumb" class="w-1 h-4 bg-white border border-slate-400 absolute top-0 pointer-events-none transform -translate-x-1/2 shadow" style="left: 0;"></div>
+        </div>
+        <div class="flex gap-2 text-xs">
+            <input id="cp-hex" type="text" class="bg-slate-900 border border-slate-600 text-white rounded w-full px-2 py-1 text-center font-mono" value="#FFFFFF">
+        </div>
+    </div>
+
+    <script>
+        // --- 1. CORE STATE ---
+        const state = {
+            srcImage: null,   // ImageBitmap
+            imgData: null,    // Uint8ClampedArray for sampling
+            imgW: 0,
+            imgH: 0,
+            
+            // Settings
+            zoom: 0, // 0 = FIT
+            panX: 0,
+            panY: 0,
+            scale: 12,
+            contrast: 1.0,
+            mode: 'rosette', // rosette | straight
+            bleed: 0,
+            fillHighlight: false,
+            
+            // Colors (CMYK angles)
+            angles: { c: 15, m: 75, y: 0, k: 45 },
+            paperColor: '#ffffff', // Hex
+            
+            // Internal
+            isPanning: false,
+            lastMouseX: 0,
+            lastMouseY: 0
+        };
+
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false }); // Optimize
+        const wrapper = document.getElementById('canvas-wrapper');
+
+        // --- 2. HELPERS & MATH ---
+
+        // Seeded random for consistent bleed
+        function seededRandom(seed) {
+            const x = Math.sin(seed) * 10000;
+            return x - Math.floor(x);
+        }
+
+        function rgbToCmyk(r, g, b) {
+            let c = 1 - (r / 255);
+            let m = 1 - (g / 255);
+            let y = 1 - (b / 255);
+            let k = Math.min(c, m, y);
+            
+            if (k === 1) return { c: 0, m: 0, y: 0, k: 1 };
+            
+            c = (c - k) / (1 - k);
+            m = (m - k) / (1 - k);
+            y = (y - k) / (1 - k);
+            
+            return { c, m, y, k };
+        }
+
+        // Draw an irregular polygon "dot"
+        function drawBleedDot(ctx, cx, cy, radius, bleedAmount, seedBase) {
+            if (bleedAmount <= 0) {
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                ctx.fill();
+                return;
+            }
+
+            const segments = 10;
+            ctx.beginPath();
+            for (let i = 0; i <= segments; i++) {
+                const angle = (i / segments) * Math.PI * 2;
+                // Generate jitter based on grid position + angle segment index
+                // This ensures the same dot always has the same shape
+                const jitterSeed = seedBase + i; 
+                const jitter = (seededRandom(jitterSeed) - 0.5) * (bleedAmount * 0.05); // mild jitter
+                const r = radius + jitter * radius;
+                
+                const x = cx + Math.cos(angle) * r;
+                const y = cy + Math.sin(angle) * r;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // --- 3. APP LOGIC ---
+
+        const app = {
+            init() {
+                // Event Listeners for controls
+                ['inp-scale', 'inp-contrast', 'inp-bleed'].forEach(id => {
+                    document.getElementById(id).addEventListener('input', (e) => {
+                        // Update UI Label
+                        const key = id.replace('inp-', '');
+                        document.getElementById('val-' + key).innerText = e.target.value + (key === 'bleed' ? '%' : '');
+                        state[key] = parseFloat(e.target.value);
+                        this.requestRender();
+                    });
+                });
+
+                document.getElementById('inp-mode').addEventListener('change', (e) => {
+                    state.mode = e.target.value;
+                    this.requestRender();
+                });
+
+                document.getElementById('inp-highlight').addEventListener('change', (e) => {
+                    state.fillHighlight = e.target.checked;
+                    this.requestRender();
+                });
+
+                // Pan Logic
+                wrapper.addEventListener('mousedown', (e) => {
+                    if(e.button !== 0) return; // Only left click
+                    state.isPanning = true;
+                    state.lastMouseX = e.clientX;
+                    state.lastMouseY = e.clientY;
+                    wrapper.style.cursor = 'grabbing';
+                });
+
+                window.addEventListener('mouseup', () => {
+                    state.isPanning = false;
+                    wrapper.style.cursor = 'grab';
+                });
+
+                window.addEventListener('mousemove', (e) => {
+                    if (!state.isPanning) return;
+                    const dx = e.clientX - state.lastMouseX;
+                    const dy = e.clientY - state.lastMouseY;
+                    state.panX += dx;
+                    state.panY += dy;
+                    state.lastMouseX = e.clientX;
+                    state.lastMouseY = e.clientY;
+                    this.applyTransform();
+                });
+
+                // File Input
+                document.getElementById('fileInput').addEventListener('change', this.handleFile);
+
+                // Initial blank render
+                this.resizeCanvas();
+            },
+
+            async handleFile(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                // Create ImageBitmap for performance
+                state.srcImage = await createImageBitmap(file);
+                state.imgW = state.srcImage.width;
+                state.imgH = state.srcImage.height;
+
+                // Create an offscreen canvas to get pixel data cheaply
+                const off = new OffscreenCanvas(state.imgW, state.imgH);
+                const offCtx = off.getContext('2d');
+                offCtx.drawImage(state.srcImage, 0, 0);
+                state.imgData = offCtx.getImageData(0, 0, state.imgW, state.imgH).data;
+
+                // Reset Pan/Zoom
+                state.zoom = 0; // Fit
+                document.getElementById('inp-zoom').value = "0";
+                app.setZoom(0);
+                app.requestRender();
+            },
+
+            setZoom(val) {
+                state.zoom = parseFloat(val);
+                this.resizeCanvas();
+                this.requestRender();
+            },
+
+            resizeCanvas() {
+                if (!state.srcImage) return;
+
+                const wrapperW = wrapper.clientWidth;
+                const wrapperH = wrapper.clientHeight;
+
+                let targetW, targetH;
+
+                if (state.zoom === 0) {
+                    // FIT Logic
+                    const aspect = state.imgW / state.imgH;
+                    if (wrapperW / wrapperH > aspect) {
+                        targetH = wrapperH - 40; 
+                        targetW = targetH * aspect;
+                    } else {
+                        targetW = wrapperW - 40;
+                        targetH = targetW / aspect;
+                    }
+                } else {
+                    targetW = state.imgW * state.zoom;
+                    targetH = state.imgH * state.zoom;
+                }
+
+                // Internal Resolution (Vector Sharpness)
+                canvas.width = targetW;
+                canvas.height = targetH;
+                
+                // Center Logic
+                state.panX = (wrapperW - targetW) / 2;
+                state.panY = (wrapperH - targetH) / 2;
+                
+                this.applyTransform();
+            },
+
+            applyTransform() {
+                canvas.style.transform = `translate(${state.panX}px, ${state.panY}px)`;
+            },
+
+            requestRender() {
+                if (!state.srcImage) return;
+                window.requestAnimationFrame(this.render.bind(this));
+            },
+
+            render() {
+                const startT = performance.now();
+                const w = canvas.width;
+                const h = canvas.height;
+                
+                // 1. Fill Paper
+                ctx.fillStyle = state.paperColor;
+                ctx.fillRect(0, 0, w, h);
+
+                // Calculate scaling factors
+                // We map render coords back to source image coords
+                const scaleX = state.imgW / w;
+                const scaleY = state.imgH / h;
+
+                // Grid Math
+                // dotScale input is abstract (4-50). Let's convert to px spacing on Source image.
+                const gridSpacing = Math.max(2, 60 - state.scale); 
+                
+                // Channels
+                const layers = [
+                    { color: 'cyan', angle: state.mode === 'straight' ? 90 : state.angles.c, key: 'c' },
+                    { color: 'magenta', angle: state.mode === 'straight' ? 90 : state.angles.m, key: 'm' },
+                    { color: 'yellow', angle: state.mode === 'straight' ? 90 : state.angles.y, key: 'y' },
+                    { color: 'black', angle: state.mode === 'straight' ? 90 : state.angles.k, key: 'k' }
+                ];
+
+                ctx.globalCompositeOperation = 'multiply';
+
+                layers.forEach(layer => {
+                    // Set Ink Color
+                    if (layer.color === 'cyan') ctx.fillStyle = '#00ffff';
+                    if (layer.color === 'magenta') ctx.fillStyle = '#ff00ff';
+                    if (layer.color === 'yellow') ctx.fillStyle = '#ffff00';
+                    if (layer.color === 'black') ctx.fillStyle = '#000000';
+
+                    const rads = layer.angle * (Math.PI / 180);
+                    const cos = Math.cos(rads);
+                    const sin = Math.sin(rads);
+
+                    // ROTATION LOGIC:
+                    // Instead of rotating the context, we traverse a rotated grid.
+                    // This ensures dots align with the ink angle.
+                    
+                    // We need to cover the entire canvas bounding box.
+                    // A safe bet is to iterate a large enough square centered on the canvas
+                    // and rotate points into canvas space.
+                    const diag = Math.sqrt(w*w + h*h);
+                    
+                    // Center of canvas
+                    const cx = w/2;
+                    const cy = h/2;
+
+                    // Iterate grid in "Rotated Space"
+                    // Scale the grid step by the zoom level so dots stay constant size relative to image content
+                    const renderGridStep = gridSpacing / scaleX; 
+                    
+                    // Optimization: Max dots safety check. If zoom is huge, dots are big.
+                    const halfSize = diag / 2;
+                    
+                    for (let y = -halfSize; y < halfSize; y += renderGridStep) {
+                        for (let x = -halfSize; x < halfSize; x += renderGridStep) {
+                            
+                            // Rotate back to Canvas Space (Standard Unrotated view)
+                            const screenX = cx + (x * cos - y * sin);
+                            const screenY = cy + (x * sin + y * cos);
+
+                            // Boundary Check
+                            if (screenX < -renderGridStep || screenX > w + renderGridStep || 
+                                screenY < -renderGridStep || screenY > h + renderGridStep) continue;
+
+                            // Map to Source Image Coordinates
+                            const srcX = Math.floor(screenX * scaleX);
+                            const srcY = Math.floor(screenY * scaleY);
+
+                            // Source Boundary Check
+                            if (srcX < 0 || srcX >= state.imgW || srcY < 0 || srcY >= state.imgH) continue;
+
+                            // Sample Pixel
+                            const idx = (srcY * state.imgW + srcX) * 4;
+                            const R = state.imgData[idx];
+                            const G = state.imgData[idx+1];
+                            const B = state.imgData[idx+2];
+
+                            // Get Ink Intensity
+                            const cmyk = rgbToCmyk(R, G, B);
+                            let intensity = cmyk[layer.key];
+
+                            // Apply Contrast Curve
+                            // (val - 0.5) * contrast + 0.5 is standard, but here we want ink curve
+                            // Simple power curve for dot gain/loss
+                            intensity = Math.pow(intensity, 1 / state.contrast);
+
+                            if (state.fillHighlight && intensity < 0.05) intensity = 0.05;
+
+                            // Threshold
+                            if (intensity > 0.01) {
+                                // Max radius is half spacing * sqrt(2) for full coverage
+                                const maxRadius = renderGridStep / 1.4; 
+                                const radius = maxRadius * intensity;
+                                
+                                // Draw
+                                // Use grid coordinates for seed to ensure stability during pan/zoom
+                                const seed = (x * 12.9898 + y * 78.233); 
+                                drawBleedDot(ctx, screenX, screenY, radius, state.bleed, seed);
+                            }
+                        }
+                    }
+                });
+
+                ctx.globalCompositeOperation = 'source-over';
+                
+                const dur = (performance.now() - startT).toFixed(1);
+                document.getElementById('render-stats').innerText = `Render: ${dur}ms | ${w}x${h}px`;
+            },
+
+            download() {
+                if(!state.srcImage) return;
+                const link = document.createElement('a');
+                link.download = 'halftone-output.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }
+        };
+
+        // --- 4. COLOR PICKER LOGIC ---
+        
+        class ColorPicker {
+            constructor() {
+                this.el = document.getElementById('color-picker');
+                this.activeContext = null; // 'paper'
+                this.h = 0; this.s = 0; this.v = 100;
+                
+                this.initEvents();
+            }
+
+            initEvents() {
+                const sb = document.getElementById('cp-sb');
+                const hue = document.getElementById('cp-hue');
+                
+                // SB Drag
+                const handleSB = (e) => {
+                    const rect = sb.getBoundingClientRect();
+                    let x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                    let y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+                    this.s = x * 100;
+                    this.v = (1 - y) * 100;
+                    this.updateUI();
+                };
+
+                let isDraggingSB = false;
+                sb.addEventListener('mousedown', (e) => { isDraggingSB = true; handleSB(e); });
+                window.addEventListener('mousemove', (e) => { if(isDraggingSB) handleSB(e); });
+                window.addEventListener('mouseup', () => { isDraggingSB = false; });
+
+                // Hue Drag
+                const handleHue = (e) => {
+                    const rect = hue.getBoundingClientRect();
+                    let x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                    this.h = x * 360;
+                    this.updateUI();
+                };
+
+                let isDraggingHue = false;
+                hue.addEventListener('mousedown', (e) => { isDraggingHue = true; handleHue(e); });
+                window.addEventListener('mousemove', (e) => { if(isDraggingHue) handleHue(e); });
+                window.addEventListener('mouseup', () => { isDraggingHue = false; });
+
+                // Close on outside click
+                window.addEventListener('mousedown', (e) => {
+                    if (!this.el.contains(e.target) && !e.target.closest('#swatch-paper')) {
+                        this.el.classList.add('hidden');
+                    }
+                });
+            }
+
+            open(e, context) {
+                this.activeContext = context;
+                this.el.classList.remove('hidden');
+                
+                // Position logic
+                const rect = e.target.getBoundingClientRect();
+                this.el.style.top = (rect.bottom + 5) + 'px';
+                this.el.style.left = rect.left + 'px';
+            }
+
+            updateUI() {
+                // Update Thumbs
+                const sbThumb = document.getElementById('cp-sb-thumb');
+                sbThumb.style.left = `${this.s}%`;
+                sbThumb.style.top = `${100 - this.v}%`;
+                document.getElementById('cp-sb').style.backgroundColor = `hsl(${this.h}, 100%, 50%)`;
+                
+                document.getElementById('cp-hue-thumb').style.left = `${(this.h/360)*100}%`;
+
+                // Convert to Hex
+                const hex = this.hsvToHex(this.h, this.s, this.v);
+                document.getElementById('cp-hex').value = hex;
+
+                // Update App
+                if (this.activeContext === 'paper') {
+                    state.paperColor = hex;
+                    document.getElementById('swatch-paper').style.backgroundColor = hex;
+                    app.requestRender();
+                }
+            }
+
+            hsvToHex(h, s, v) {
+                s /= 100; v /= 100;
+                let c = v * s;
+                let x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+                let m = v - c;
+                let r=0, g=0, b=0;
+                if (0 <= h && h < 60) { r=c; g=x; b=0; }
+                else if (60 <= h && h < 120) { r=x; g=c; b=0; }
+                else if (120 <= h && h < 180) { r=0; g=c; b=x; }
+                else if (180 <= h && h < 240) { r=0; g=x; b=c; }
+                else if (240 <= h && h < 300) { r=x; g=0; b=c; }
+                else if (300 <= h && h < 360) { r=c; g=0; b=x; }
+                
+                const toHex = x => {
+                    const hex = Math.round((x+m)*255).toString(16);
+                    return hex.length === 1 ? '0'+hex : hex;
+                };
+                return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+            }
+        }
+
+        const picker = new ColorPicker();
+        function openColorPicker(e, ctx) { picker.open(e, ctx); }
+        function toggleSection(id) { 
+            const el = document.getElementById(id);
+            el.classList.toggle('hidden');
+        }
+
+        // Start
+        app.init();
+
+    </script>
+</body>
+</html>

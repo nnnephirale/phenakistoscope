@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Liquid Warp v3 — Emergence</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #0a0a0a; 
+            color: white; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+        
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        canvas { 
+            display: block; 
+            width: 100%;
+            height: 100%;
+        }
+        
+        #ui {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 24px;
+            border-radius: 12px;
+            z-index: 100;
+            min-width: 280px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        #ui h2 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            opacity: 0.9;
+        }
+        
+        .upload-zone {
+            border: 2px dashed rgba(255,255,255,0.3);
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 16px;
+        }
+        
+        .upload-zone:hover {
+            border-color: rgba(255,255,255,0.6);
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .upload-zone.dragover {
+            border-color: #4a9eff;
+            background: rgba(74, 158, 255, 0.1);
+        }
+        
+        .upload-zone p {
+            font-size: 13px;
+            opacity: 0.7;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        #status {
+            font-size: 12px;
+            padding: 8px 12px;
+            background: rgba(74, 158, 255, 0.2);
+            border-radius: 6px;
+            display: none;
+        }
+        
+        .controls {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .control-group {
+            margin-bottom: 14px;
+        }
+        
+        .control-group label {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            opacity: 0.6;
+            margin-bottom: 6px;
+        }
+        
+        .control-group input[type="range"] {
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255,255,255,0.2);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+        }
+        
+        .control-value {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 4px;
+            text-align: right;
+        }
+        
+        #hideUI {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            z-index: 100;
+        }
+        
+        #hideUI:hover {
+            background: rgba(255,255,255,0.1);
+        }
+    </style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<div id="ui">
+    <h2>Liquid Warp</h2>
+    
+    <div class="upload-zone" id="uploadZone">
+        <p>Drop images here or click to upload</p>
+        <p style="margin-top: 8px; font-size: 11px; opacity: 0.5;">5-10 images recommended</p>
+    </div>
+    <input type="file" id="fileInput" multiple accept="image/*">
+    
+    <div id="status">0 images loaded</div>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label>Rhythm Speed</label>
+            <input type="range" id="speedControl" min="0.8" max="4" step="0.1" value="1.8">
+            <div class="control-value"><span id="speedValue">1.8</span>s per transition</div>
+        </div>
+        
+        <div class="control-group">
+            <label>Edge Warp Intensity</label>
+            <input type="range" id="warpControl" min="0.2" max="2.5" step="0.1" value="1.2">
+            <div class="control-value"><span id="warpValue">1.2</span></div>
+        </div>
+        
+        <div class="control-group">
+            <label>Blob Noise</label>
+            <input type="range" id="noiseControl" min="1" max="6" step="0.25" value="2.5">
+            <div class="control-value"><span id="noiseValue">2.5</span></div>
+        </div>
+        
+        <div class="control-group">
+            <label>Sticky Stretch</label>
+            <input type="range" id="stretchControl" min="0.5" max="3" step="0.1" value="1.5">
+            <div class="control-value"><span id="stretchValue">1.5</span></div>
+        </div>
+    </div>
+</div>
+
+<button id="hideUI">Hide UI</button>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+
+// ============================================
+// SIMPLEX NOISE (GLSL)
+// ============================================
+const noiseGLSL = `
+    vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+    
+    float snoise(vec2 v){
+        const vec4 C = vec4(0.211324865405187, 0.366025403784439,
+                           -0.577350269189626, 0.024390243902439);
+        vec2 i  = floor(v + dot(v, C.yy));
+        vec2 x0 = v -   i + dot(i, C.xx);
+        vec2 i1;
+        i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+        vec4 x12 = x0.xyxy + C.xxzz;
+        x12.xy -= i1;
+        i = mod(i, 289.0);
+        vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0))
+                        + i.x + vec3(0.0, i1.x, 1.0));
+        vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy),
+                    dot(x12.zw,x12.zw)), 0.0);
+        m = m*m;
+        m = m*m;
+        vec3 x = 2.0 * fract(p * C.www) - 1.0;
+        vec3 h = abs(x) - 0.5;
+        vec3 ox = floor(x + 0.5);
+        vec3 a0 = x - ox;
+        m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
+        vec3 g;
+        g.x  = a0.x  * x0.x  + h.x  * x0.y;
+        g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+        return 130.0 * dot(m, g);
+    }
+    
+    float fbm(vec2 p, float t) {
+        float sum = 0.0;
+        float amp = 0.5;
+        float freq = 1.0;
+        for(int i = 0; i < 4; i++) {
+            sum += amp * snoise(p * freq + t * 0.2);
+            amp *= 0.5;
+            freq *= 2.0;
+        }
+        return sum;
+    }
+`;
+
+// ============================================
+// VERTEX SHADER
+// ============================================
+const vertexShader = `
+    varying vec2 vUv;
+    void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+`;
+
+// ============================================
+// FRAGMENT SHADER — EMERGENCE MODEL
+// ============================================
+const fragmentShader = `
+    ${noiseGLSL}
+    
+    uniform float uTime;
+    uniform float uProgress;      // 0 to 1
+    uniform sampler2D uTexOld;    // Outgoing image (pushed to edges)
+    uniform sampler2D uTexNew;    // Incoming image (emerging from center)
+    uniform float uAspect;
+    uniform float uWarpIntensity;
+    uniform float uNoiseScale;
+    uniform float uStretch;
+    
+    varying vec2 vUv;
+    
+    void main() {
+        vec2 uv = vUv;
+        vec2 center = vec2(0.5);
+        
+        // Aspect-corrected centered coordinates
+        vec2 p = uv - center;
+        p.x *= uAspect;
+        
+        float dist = length(p);
+        float angle = atan(p.y, p.x);
+        
+        // ==========================================
+        // PROGRESS CURVES
+        // ==========================================
+        
+        // How much the NEW image has grown (0 = tiny, 1 = full screen)
+        // Use easing for more organic feel
+        float growthRaw = uProgress;
+        float growth = smoothstep(0.0, 1.0, growthRaw);
+        growth = growth * growth * (3.0 - 2.0 * growth); // Smooth cubic
+        
+        // The radius of the emerging new image
+        // Starts small, grows to cover entire screen
+        float newImageRadius = growth * 1.5; // 1.5 to ensure it covers corners
+        
+        // ==========================================
+        // BLOBBY EDGE BOUNDARY
+        // ==========================================
+        
+        // Add noise to the boundary edge for organic blob shape
+        float boundaryNoise = fbm(vec2(angle * 2.0, uTime * 0.5), uTime) * 0.3;
+        boundaryNoise += snoise(vec2(angle * 4.0, uTime * 0.8 + 10.0)) * 0.15;
+        
+        // The blobby boundary between old and new
+        float blobRadius = newImageRadius + boundaryNoise * uNoiseScale * 0.1 * (0.5 + growth * 0.5);
+        
+        // ==========================================
+        // DETERMINE WHICH IMAGE TO SHOW
+        // ==========================================
+        
+        // Is this pixel inside the new (emerging) image?
+        float inNewImage = 1.0 - smoothstep(blobRadius - 0.05, blobRadius + 0.05, dist);
+        
+        // ==========================================
+        // OLD IMAGE: WARP OUTWARD
+        // ==========================================
+        
+        // The old image gets pushed outward and stretched
+        // Calculate displacement for old image
+        
+        // Push strength increases as new image grows
+        float pushStrength = growth * uWarpIntensity;
+        
+        // Radial push - pixels get pushed away from center
+        // Stronger push near the boundary of the new image
+        float proximityToBoundary = 1.0 - abs(dist - blobRadius) / 0.5;
+        proximityToBoundary = max(0.0, proximityToBoundary);
+        
+        // Add noise to the push direction for sticky/blobby feel
+        float pushNoiseX = fbm(p * uNoiseScale + uTime * 0.3, uTime);
+        float pushNoiseY = fbm(p * uNoiseScale + 50.0 + uTime * 0.3, uTime + 100.0);
+        
+        // Calculate push displacement
+        vec2 pushDir = normalize(p + 0.001);
+        float pushAmount = pushStrength * uStretch * (0.3 + proximityToBoundary * 0.7);
+        
+        // Add noise to push
+        vec2 noiseOffset = vec2(pushNoiseX, pushNoiseY) * 0.2 * pushStrength;
+        
+        // Displaced UV for old image
+        vec2 oldP = p + pushDir * pushAmount + noiseOffset;
+        
+        // Convert back to UV space
+        oldP.x /= uAspect;
+        vec2 oldUV = oldP + center;
+        
+        // ==========================================
+        // NEW IMAGE: SCALE FROM CENTER
+        // ==========================================
+        
+        // The new image scales up from center
+        // When growth is small, UVs are zoomed in (showing center of image)
+        // When growth is 1, UVs are normal
+        
+        float newScale = max(0.001, growth); // Avoid division by zero
+        
+        // Scale UVs around center
+        vec2 newP = p / newScale;
+        
+        // Add subtle wobble to new image as it emerges
+        float wobble = (1.0 - growth) * 0.1;
+        float wobbleNoiseX = snoise(vec2(uTime * 2.0, 0.0)) * wobble;
+        float wobbleNoiseY = snoise(vec2(0.0, uTime * 2.0 + 50.0)) * wobble;
+        newP += vec2(wobbleNoiseX, wobbleNoiseY);
+        
+        // Convert back to UV space
+        newP.x /= uAspect;
+        vec2 newUV = newP + center;
+        
+        // ==========================================
+        // SAMPLE TEXTURES
+        // ==========================================
+        
+        vec4 oldColor = texture2D(uTexOld, oldUV);
+        vec4 newColor = texture2D(uTexNew, newUV);
+        
+        // ==========================================
+        // BOUNDS CHECKING — CREATE HOLES/GAPS
+        // ==========================================
+        
+        // Old image: create gaps where UV goes out of bounds
+        float oldInBounds = 1.0;
+        float edgeFade = 0.02;
+        
+        if (oldUV.x < 0.0 || oldUV.x > 1.0 || oldUV.y < 0.0 || oldUV.y > 1.0) {
+            oldInBounds = 0.0;
+        } else {
+            // Soft fade at edges
+            oldInBounds *= smoothstep(0.0, edgeFade, oldUV.x);
+            oldInBounds *= smoothstep(0.0, edgeFade, oldUV.y);
+            oldInBounds *= smoothstep(0.0, edgeFade, 1.0 - oldUV.x);
+            oldInBounds *= smoothstep(0.0, edgeFade, 1.0 - oldUV.y);
+        }
+        
+        // New image bounds (during early growth, some areas might be out of bounds)
+        float newInBounds = 1.0;
+        if (newUV.x < 0.0 || newUV.x > 1.0 || newUV.y < 0.0 || newUV.y > 1.0) {
+            newInBounds = 0.0;
+        }
+        
+        // ==========================================
+        // COMPOSITING
+        // ==========================================
+        
+        // Background
+        vec3 bgColor = vec3(0.03);
+        
+        // Start with background
+        vec3 finalColor = bgColor;
+        
+        // Layer 1: Old image (being pushed out)
+        // Only show where it's in bounds and outside the new image area
+        float oldMask = (1.0 - inNewImage) * oldInBounds;
+        finalColor = mix(finalColor, oldColor.rgb, oldMask);
+        
+        // Layer 2: New image (emerging)
+        // Show where we're inside the blob boundary
+        float newMask = inNewImage * newInBounds;
+        finalColor = mix(finalColor, newColor.rgb, newMask);
+        
+        // Add slight glow/blend at the boundary
+        float boundaryGlow = smoothstep(0.1, 0.0, abs(dist - blobRadius)) * 0.3 * (1.0 - growth);
+        
+        gl_FragColor = vec4(finalColor, 1.0);
+    }
+`;
+
+// ============================================
+// MAIN APPLICATION
+// ============================================
+class LiquidWarp {
+    constructor() {
+        this.textures = [];
+        this.currentIndex = 0;
+        this.progress = 0;
+        this.transitionDuration = 1.8;
+        this.isRunning = false;
+        
+        this.init();
+        this.setupUI();
+        this.animate();
+    }
+    
+    init() {
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        
+        this.renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            alpha: false 
+        });
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setClearColor(0x080808);
+        
+        document.getElementById('canvas-container').appendChild(this.renderer.domElement);
+        
+        // Placeholder texture
+        const placeholderData = new Uint8Array([8, 8, 8, 255]);
+        this.placeholderTex = new THREE.DataTexture(placeholderData, 1, 1, THREE.RGBAFormat);
+        this.placeholderTex.needsUpdate = true;
+        
+        // Uniforms
+        this.uniforms = {
+            uTime: { value: 0 },
+            uProgress: { value: 0 },
+            uTexOld: { value: this.placeholderTex },
+            uTexNew: { value: this.placeholderTex },
+            uAspect: { value: window.innerWidth / window.innerHeight },
+            uWarpIntensity: { value: 1.2 },
+            uNoiseScale: { value: 2.5 },
+            uStretch: { value: 1.5 }
+        };
+        
+        this.material = new THREE.ShaderMaterial({
+            uniforms: this.uniforms,
+            vertexShader,
+            fragmentShader
+        });
+        
+        const geometry = new THREE.PlaneGeometry(2, 2);
+        this.mesh = new THREE.Mesh(geometry, this.material);
+        this.scene.add(this.mesh);
+        
+        this.clock = new THREE.Clock();
+        
+        window.addEventListener('resize', () => this.onResize());
+    }
+    
+    setupUI() {
+        const fileInput = document.getElementById('fileInput');
+        const uploadZone = document.getElementById('uploadZone');
+        
+        uploadZone.addEventListener('click', () => fileInput.click());
+        
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            this.loadImages(e.dataTransfer.files);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            this.loadImages(e.target.files);
+        });
+        
+        // Controls
+        document.getElementById('speedControl').addEventListener('input', (e) => {
+            this.transitionDuration = parseFloat(e.target.value);
+            document.getElementById('speedValue').textContent = e.target.value;
+        });
+        
+        document.getElementById('warpControl').addEventListener('input', (e) => {
+            this.uniforms.uWarpIntensity.value = parseFloat(e.target.value);
+            document.getElementById('warpValue').textContent = e.target.value;
+        });
+        
+        document.getElementById('noiseControl').addEventListener('input', (e) => {
+            this.uniforms.uNoiseScale.value = parseFloat(e.target.value);
+            document.getElementById('noiseValue').textContent = e.target.value;
+        });
+        
+        document.getElementById('stretchControl').addEventListener('input', (e) => {
+            this.uniforms.uStretch.value = parseFloat(e.target.value);
+            document.getElementById('stretchValue').textContent = e.target.value;
+        });
+        
+        // Hide UI
+        const hideBtn = document.getElementById('hideUI');
+        const ui = document.getElementById('ui');
+        let uiVisible = true;
+        
+        hideBtn.addEventListener('click', () => {
+            uiVisible = !uiVisible;
+            ui.style.display = uiVisible ? 'block' : 'none';
+            hideBtn.textContent = uiVisible ? 'Hide UI' : 'Show UI';
+        });
+    }
+    
+    async loadImages(files) {
+        if (!files || files.length === 0) return;
+        
+        const status = document.getElementById('status');
+        status.style.display = 'block';
+        status.textContent = 'Loading...';
+        
+        this.textures.forEach(tex => tex.dispose());
+        this.textures = [];
+        this.currentIndex = 0;
+        this.progress = 0;
+        this.isRunning = false;
+        
+        const loader = new THREE.TextureLoader();
+        
+        const loadPromises = Array.from(files).map(file => {
+            return new Promise((resolve, reject) => {
+                const url = URL.createObjectURL(file);
+                loader.load(url, (texture) => {
+                    texture.minFilter = THREE.LinearFilter;
+                    texture.magFilter = THREE.LinearFilter;
+                    texture.wrapS = THREE.ClampToEdgeWrapping;
+                    texture.wrapT = THREE.ClampToEdgeWrapping;
+                    resolve(texture);
+                }, undefined, reject);
+            });
+        });
+        
+        try {
+            const loaded = await Promise.all(loadPromises);
+            this.textures = loaded;
+            
+            status.textContent = `${this.textures.length} images loaded`;
+            
+            if (this.textures.length > 0) {
+                // OLD = first image (will be pushed out)
+                // NEW = second image (emerging from center)
+                this.uniforms.uTexOld.value = this.textures[0];
+                this.uniforms.uTexNew.value = this.textures.length > 1 
+                    ? this.textures[1] 
+                    : this.textures[0];
+                this.currentIndex = 0;
+                this.isRunning = true;
+            }
+        } catch (err) {
+            console.error('Error loading images:', err);
+            status.textContent = 'Error loading images';
+        }
+    }
+    
+    onResize() {
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.uniforms.uAspect.value = window.innerWidth / window.innerHeight;
+    }
+    
+    animate() {
+        requestAnimationFrame(() => this.animate());
+        
+        const delta = this.clock.getDelta();
+        const elapsed = this.clock.getElapsedTime();
+        
+        this.uniforms.uTime.value = elapsed;
+        
+        if (this.isRunning && this.textures.length > 1) {
+            // Continuous progress
+            this.progress += delta / this.transitionDuration;
+            
+            if (this.progress >= 1.0) {
+                // Transition complete
+                // The "new" becomes the "old", next image becomes "new"
+                this.progress = 0;
+                
+                this.currentIndex = (this.currentIndex + 1) % this.textures.length;
+                const nextIndex = (this.currentIndex + 1) % this.textures.length;
+                
+                // Swap: what was new is now old
+                this.uniforms.uTexOld.value = this.textures[this.currentIndex];
+                this.uniforms.uTexNew.value = this.textures[nextIndex];
+            }
+            
+            this.uniforms.uProgress.value = this.progress;
+        }
+        
+        this.renderer.render(this.scene, this.camera);
+    }
+}
+
+// Initialize
+const app = new LiquidWarp();
+
+</script>
+</body>
+</html>

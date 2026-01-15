@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Pixel Art Partner</title>
+    <style>
+        :root {
+            --primary: #4CAF50;
+            --primary-hover: #45a049;
+            --bg: #f5f5f5;
+            --panel: #ffffff;
+            --border: #ddd;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Tool Sections */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .section {
+            background: var(--panel);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            min-width: 200px;
+        }
+
+        .section h2 {
+            font-size: 16px;
+            margin-top: 0;
+            margin-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 5px;
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        button:hover { background-color: var(--primary-hover); }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        button.active { outline: 3px solid #2196F3; }
+
+        /* Color Palette */
+        .palette {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+        }
+
+        .swatch {
+            width: 25px;
+            height: 25px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+
+        .swatch.active { border: 2px solid black; }
+
+        /* Image Section */
+        #image-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            max-height: 150px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .img-thumb {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            cursor: pointer;
+            border: 1px solid #ddd;
+        }
+
+        .img-thumb.active { border: 2px solid #2196F3; }
+
+        /* Grid Area */
+        #canvas-wrapper {
+            position: relative;
+            background: var(--panel);
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            min-height: 520px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: visible;
+        }
+
+        #grid-container {
+            position: relative;
+            background-color: #ddd;
+            width: 500px;
+            height: 500px;
+            user-select: none;
+        }
+
+        .pixel {
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+            box-sizing: border-box;
+            background-size: cover;
+            background-position: center;
+        }
+
+        /* Grid Line Hiding */
+        .hide-grid-lines { background-color: transparent !important; }
+        .hide-grid-lines .pixel { border: none !important; }
+
+        /* Handles */
+        .handle {
+            position: absolute;
+            background: transparent;
+            z-index: 10;
+        }
+        .handle:hover { background: rgba(0, 0, 255, 0.2); }
+        .handle.row-handle { height: 20px; cursor: ns-resize; left: -20px; right: -20px; }
+        .handle.col-handle { width: 20px; cursor: ew-resize; top: -20px; bottom: -20px; }
+
+        /* Symmetry Guides */
+        .guide {
+            position: absolute;
+            background: rgba(0, 0, 255, 0.5);
+            pointer-events: none;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="controls">
+        <div class="section">
+            <h2>Tools</h2>
+            <div style="display:flex; gap: 5px; flex-wrap: wrap;">
+                <button onclick="setTool('draw')" id="btn-draw" class="active">Draw</button>
+                <button onclick="setTool('erase')" id="btn-erase">Erase</button>
+                <button onclick="setTool('fill')" id="btn-fill">Fill</button>
+                <button onclick="clearGrid()">Clear All</button>
+            </div>
+            <div style="margin-top: 10px;">
+                <button onclick="undo()" id="btn-undo">Undo</button>
+                <button onclick="redo()" id="btn-redo">Redo</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Grid Type & Size</h2>
+            <select id="grid-type-select" onchange="changeGridType(this.value)">
+                <option value="square">Square</option>
+                <option value="circle">Circle</option>
+                <option value="hex">Hexagon</option>
+                <option value="squircle">Squircle</option>
+            </select>
+            <select id="grid-size-select" onchange="changeGridSize(parseInt(this.value))">
+                <option value="8">8x8</option>
+                <option value="16" selected>16x16</option>
+                <option value="32">32x32</option>
+            </select>
+            <label style="display:block; margin-top:5px;">
+                <input type="checkbox" id="hide-lines" onchange="toggleGridLines()"> Hide Grid Lines
+            </label>
+        </div>
+
+        <div class="section">
+            <h2>Variable Proportions</h2>
+            <label><input type="checkbox" id="enable-proportions" onchange="renderGrid()"> Enable Proportions</label>
+            <div style="margin-top:5px;">
+                <input type="range" id="rand-intensity" min="1" max="5" value="3"> Intensity
+                <button onclick="randomizeProportions()">Randomize</button>
+                <button onclick="resetProportions()">Reset</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Symmetry</h2>
+            <label><input type="checkbox" id="sym-v"> Vertical</label><br>
+            <label><input type="checkbox" id="sym-h"> Horizontal</label><br>
+            <label><input type="checkbox" id="sym-r"> Radial</label>
+        </div>
+
+        <div class="section">
+            <h2>Colors</h2>
+            <div class="palette" id="palette"></div>
+            <div style="margin-top:10px; display:flex; gap:5px;">
+                <input type="color" id="custom-color" value="#ff0000">
+                <button onclick="addCustomColor()">Add</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Images</h2>
+            <input type="file" id="img-upload" multiple accept="image/*" onchange="handleImageUpload(event)">
+            <div id="image-container"></div>
+        </div>
+    </div>
+
+    <div id="canvas-wrapper">
+        <div id="grid-container"></div>
+    </div>
+
+    <div style="text-align:center;">
+        <button onclick="exportPNG()" style="font-size: 18px; padding: 12px 24px;">Export PNG</button>
+    </div>
+</div>
+
+<script>
+    // --- Global State ---
+    let gridSize = 16;
+    let gridType = 'square';
+    let gridData = [];
+    let rowSizes = [];
+    let colSizes = [];
+    let currentTool = 'draw';
+    let currentColor = '#000000';
+    let currentImageId = null;
+    let images = [];
+    let history = [];
+    let historyIndex = -1;
+    let isMouseDown = false;
+    let resizingInfo = null;
+
+    const defaultSwatches = ['#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffa500', '#800080', '#808080', '#006400'];
+
+    // --- Initialization ---
+    function init() {
+        initPalette();
+        changeGridSize(16);
+        saveHistory();
+    }
+
+    function initPalette() {
+        const container = document.getElementById('palette');
+        container.innerHTML = '';
+        defaultSwatches.forEach(color => createSwatch(color));
+        selectSwatch(document.querySelector('.swatch'));
+    }
+
+    function createSwatch(color) {
+        const container = document.getElementById('palette');
+        const s = document.createElement('div');
+        s.className = 'swatch';
+        s.style.backgroundColor = color;
+        s.onclick = () => selectSwatch(s);
+        container.appendChild(s);
+    }
+
+    function selectSwatch(el) {
+        document.querySelectorAll('.swatch, .img-thumb').forEach(x => x.classList.remove('active'));
+        el.classList.add('active');
+        currentColor = el.style.backgroundColor;
+        currentImageId = null;
+    }
+
+    // --- Grid Logic ---
+    function changeGridSize(newSize) {
+        const oldData = gridData;
+        const oldSize = gridSize;
+        gridSize = newSize;
+        gridData = Array.from({ length: gridSize }, () => 
+            Array.from({ length: gridSize }, () => ({ filled: false, color: '', imageId: null }))
+        );
+        
+        // Preserve data
+        for(let r=0; r < Math.min(oldSize, gridSize); r++) {
+            for(let c=0; c < Math.min(oldSize, gridSize); c++) {
+                if(oldData[r] && oldData[r][c]) gridData[r][c] = oldData[r][c];
+            }
+        }
+
+        rowSizes = new Array(gridSize).fill(1.0);
+        colSizes = new Array(gridSize).fill(1.0);
+        renderGrid();
+    }
+
+    function changeGridType(type) {
+        gridType = type;
+        renderGrid();
+    }
+
+    function renderGrid() {
+        const container = document.getElementById('grid-container');
+        container.innerHTML = '';
+        const useProp = document.getElementById('enable-proportions').checked;
+        
+        container.style.display = (gridType === 'square' && !useProp) ? 'grid' : 'block';
+        if (gridType === 'square' && !useProp) {
+            container.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+            container.style.gridTemplateRows = `repeat(${gridSize}, 1fr)`;
+            container.style.gap = document.getElementById('hide-lines').checked ? '0' : '1px';
+        }
+
+        const totalRowProp = rowSizes.reduce((a,b) => a+b, 0);
+        const totalColProp = colSizes.reduce((a,b) => a+b, 0);
+
+        let currentTop = 0;
+        for (let r = 0; r < gridSize; r++) {
+            let currentLeft = 0;
+            const hPct = (rowSizes[r] / totalRowProp) * 100;
+            
+            for (let c = 0; c < gridSize; c++) {
+                const wPct = (colSizes[c] / totalColProp) * 100;
+                const pixel = document.createElement('div');
+                pixel.className = 'pixel';
+                pixel.dataset.r = r;
+                pixel.dataset.c = c;
+                
+                // Styling
+                if (gridType !== 'square' || useProp) {
+                    pixel.style.position = 'absolute';
+                    pixel.style.top = currentTop + '%';
+                    pixel.style.left = currentLeft + '%';
+                    pixel.style.width = wPct + '%';
+                    pixel.style.height = hPct + '%';
+                }
+
+                applyPixelStyle(pixel, r, c);
+
+                pixel.onmousedown = (e) => handlePixelAction(r, c);
+                pixel.onmouseover = (e) => { if(isMouseDown) handlePixelAction(r, c); };
+
+                container.appendChild(pixel);
+                currentLeft += wPct;
+            }
+            currentTop += hPct;
+        }
+
+        if(useProp) renderHandles();
+        renderGuides();
+    }
+
+    function applyPixelStyle(el, r, c) {
+        const data = gridData[r][c];
+        const hide = document.getElementById('hide-lines').checked;
+        
+        el.style.backgroundColor = data.filled ? data.color : (hide ? 'transparent' : '#fff');
+        el.style.border = (hide || gridType !== 'square') ? 'none' : '1px solid #eee';
+        
+        if (data.imageId) {
+            const img = images.find(i => i.id === data.imageId);
+            el.style.backgroundImage = `url(${img.url})`;
+        } else {
+            el.style.backgroundImage = 'none';
+        }
+
+        // Shapes
+        if (gridType === 'circle') el.style.borderRadius = '50%';
+        else if (gridType === 'hex') el.style.clipPath = 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
+        else if (gridType === 'squircle') el.style.borderRadius = '30%';
+        else el.style.borderRadius = '0';
+    }
+
+    function renderHandles() {
+        const container = document.getElementById('grid-container');
+        const totalRowProp = rowSizes.reduce((a,b) => a+b, 0);
+        const totalColProp = colSizes.reduce((a,b) => a+b, 0);
+
+        // Column handles (vertical lines)
+        let leftAccum = 0;
+        for(let i=1; i<gridSize; i++) {
+            leftAccum += (colSizes[i-1]/totalColProp) * 100;
+            const h = document.createElement('div');
+            h.className = 'handle col-handle';
+            h.style.left = `calc(${leftAccum}% - 10px)`;
+            h.onmousedown = (e) => startResizing(e, 'col', i);
+            container.appendChild(h);
+        }
+
+        // Row handles (horizontal lines)
+        let topAccum = 0;
+        for(let i=1; i<gridSize; i++) {
+            topAccum += (rowSizes[i-1]/totalRowProp) * 100;
+            const h = document.createElement('div');
+            h.className = 'handle row-handle';
+            h.style.top = `calc(${topAccum}% - 10px)`;
+            h.onmousedown = (e) => startResizing(e, 'row', i);
+            container.appendChild(h);
+        }
+    }
+
+    function renderGuides() {
+        const container = document.getElementById('grid-container');
+        if(document.getElementById('sym-v').checked) {
+            const g = document.createElement('div');
+            g.className = 'guide';
+            g.style.width = '1px'; g.style.height = '100%'; g.style.left = '50%';
+            container.appendChild(g);
+        }
+        if(document.getElementById('sym-h').checked) {
+            const g = document.createElement('div');
+            g.className = 'guide';
+            g.style.height = '1px'; g.style.width = '100%'; g.style.top = '50%';
+            container.appendChild(g);
+        }
+    }
+
+    // --- Interaction ---
+    function setTool(t) {
+        currentTool = t;
+        document.querySelectorAll('.section button').forEach(b => b.classList.remove('active'));
+        document.getElementById('btn-' + t).classList.add('active');
+    }
+
+    function handlePixelAction(r, c) {
+        if(currentTool === 'fill') {
+            const targetColor = gridData[r][c].color;
+            const targetFilled = gridData[r][c].filled;
+            floodFill(r, c, targetColor, targetFilled);
+            saveHistory();
+            return;
+        }
+
+        const pixelsToUpdate = getSymmetricPixels(r, c);
+        pixelsToUpdate.forEach(pos => {
+            const cell = gridData[pos.r][pos.c];
+            if(currentTool === 'draw') {
+                cell.filled = true;
+                cell.color = currentColor;
+                cell.imageId = currentImageId;
+            } else if(currentTool === 'erase') {
+                cell.filled = false;
+                cell.imageId = null;
+            }
+            updatePixelDOM(pos.r, pos.c);
+        });
+    }
+
+    function getSymmetricPixels(r, c) {
+        let points = [{r, c}];
+        const v = document.getElementById('sym-v').checked;
+        const h = document.getElementById('sym-h').checked;
+        const radial = document.getElementById('sym-r').checked;
+
+        if (v || radial) points.push({r, c: gridSize - 1 - c});
+        if (h || radial) points.push({r: gridSize - 1 - r, c});
+        if ((v && h) || radial) points.push({r: gridSize - 1 - r, c: gridSize - 1 - c});
+        
+        return points;
+    }
+
+    function updatePixelDOM(r, c) {
+        const el = document.querySelector(`.pixel[data-r="${r}"][data-c="${c}"]`);
+        if(el) applyPixelStyle(el, r, c);
+    }
+
+    function floodFill(r, c, targetColor, targetFilled) {
+        if(r < 0 || r >= gridSize || c < 0 || c >= gridSize) return;
+        const cell = gridData[r][c];
+        if(cell.filled === true && currentTool === 'fill' && cell.color === currentColor && !currentImageId) return;
+        if(cell.filled !== targetFilled || cell.color !== targetColor) return;
+
+        cell.filled = true;
+        cell.color = currentColor;
+        cell.imageId = currentImageId;
+        updatePixelDOM(r, c);
+
+        floodFill(r+1, c, targetColor, targetFilled);
+        floodFill(r-1, c, targetColor, targetFilled);
+        floodFill(r, c+1, targetColor, targetFilled);
+        floodFill(r, c-1, targetColor, targetFilled);
+    }
+
+    function clearGrid() {
+        gridData.forEach(row => row.forEach(cell => { cell.filled = false; cell.imageId = null; }));
+        renderGrid();
+        saveHistory();
+    }
+
+    // --- Proportions Logic ---
+    function startResizing(e, type, index) {
+        e.preventDefault();
+        resizingInfo = { type, index, startX: e.clientX, startY: e.clientY, startSizes: type === 'row' ? [...rowSizes] : [...colSizes] };
+    }
+
+    function randomizeProportions() {
+        const intensity = parseInt(document.getElementById('rand-intensity').value);
+        const rand = () => Math.max(0.1, Math.min(8.0, Math.pow(Math.random(), 1.5) * (intensity * 1.5)));
+        
+        for(let i=0; i<gridSize; i++) {
+            rowSizes[i] = rand();
+            colSizes[i] = rand();
+        }
+
+        if(document.getElementById('sym-v').checked) colSizes = mirrorArray(colSizes);
+        if(document.getElementById('sym-h').checked) rowSizes = mirrorArray(rowSizes);
+
+        renderGrid();
+        saveHistory();
+    }
+
+    function mirrorArray(arr) {
+        const half = Math.floor(arr.length / 2);
+        for(let i=0; i<half; i++) arr[arr.length - 1 - i] = arr[i];
+        return arr;
+    }
+
+    function resetProportions() {
+        rowSizes.fill(1.0);
+        colSizes.fill(1.0);
+        renderGrid();
+        saveHistory();
+    }
+
+    // --- Image Upload ---
+    async function handleImageUpload(e) {
+        const files = Array.from(e.target.files);
+        const container = document.getElementById('image-container');
+        container.innerHTML = '';
+        images = [];
+
+        for (const file of files) {
+            const base64 = await processImage(file);
+            const id = 'img_' + Math.random().toString(36).substr(2, 9);
+            const imgObj = { id, url: base64, name: file.name };
+            images.push(imgObj);
+            
+            const thumb = document.createElement('img');
+            thumb.src = base64;
+            thumb.className = 'img-thumb';
+            thumb.onclick = () => selectImage(id, thumb);
+            container.appendChild(thumb);
+            
+            // Auto select last
+            if(file === files[files.length-1]) selectImage(id, thumb);
+        }
+    }
+
+    function processImage(file) {
+        return new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height;
+                    if(w > 300 || h > 300) {
+                        const ratio = Math.min(300/w, 300/h);
+                        w *= ratio; h *= ratio;
+                    }
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    resolve(canvas.toDataURL('image/jpeg', 0.85));
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function selectImage(id, el) {
+        document.querySelectorAll('.swatch, .img-thumb').forEach(x => x.classList.remove('active'));
+        el.classList.add('active');
+        currentImageId = id;
+        currentColor = 'transparent';
+    }
+
+    function addCustomColor() {
+        const color = document.getElementById('custom-color').value;
+        if(!defaultSwatches.includes(color)) {
+            createSwatch(color);
+            selectSwatch(document.querySelector('.palette').lastChild);
+        }
+    }
+
+    // --- History ---
+    function saveHistory() {
+        if(historyIndex < history.length - 1) history = history.slice(0, historyIndex + 1);
+        history.push(JSON.stringify({
+            gridData, rowSizes, colSizes, gridType, gridSize
+        }));
+        if(history.length > 30) history.shift();
+        else historyIndex++;
+        updateHistoryButtons();
+    }
+
+    function undo() {
+        if(historyIndex > 0) {
+            historyIndex--;
+            loadHistoryState();
+        }
+    }
+
+    function redo() {
+        if(historyIndex < history.length - 1) {
+            historyIndex++;
+            loadHistoryState();
+        }
+    }
+
+    function loadHistoryState() {
+        const state = JSON.parse(history[historyIndex]);
+        if(!state) return;
+        gridData = state.gridData;
+        rowSizes = state.rowSizes;
+        colSizes = state.colSizes;
+        gridType = state.gridType;
+        gridSize = state.gridSize;
+        document.getElementById('grid-type-select').value = gridType;
+        document.getElementById('grid-size-select').value = gridSize;
+        renderGrid();
+        updateHistoryButtons();
+    }
+
+    function updateHistoryButtons() {
+        document.getElementById('btn-undo').disabled = historyIndex <= 0;
+        document.getElementById('btn-redo').disabled = historyIndex >= history.length - 1;
+    }
+
+    // --- Export ---
+    function exportPNG() {
+        const canvas = document.createElement('canvas');
+        const size = 1000; 
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, size, size);
+
+        const totalRowProp = rowSizes.reduce((a,b) => a+b, 0);
+        const totalColProp = colSizes.reduce((a,b) => a+b, 0);
+
+        let curY = 0;
+        for(let r=0; r<gridSize; r++) {
+            let curX = 0;
+            const h = (rowSizes[r]/totalRowProp) * size;
+            for(let c=0; c<gridSize; c++) {
+                const w = (colSizes[c]/totalColProp) * size;
+                const data = gridData[r][c];
+
+                if(data.filled) {
+                    ctx.save();
+                    // Clip shapes
+                    if(gridType === 'circle') {
+                        ctx.beginPath(); ctx.arc(curX + w/2, curY + h/2, Math.min(w,h)/2, 0, Math.PI*2); ctx.clip();
+                    } else if(gridType === 'hex') {
+                        ctx.beginPath();
+                        ctx.moveTo(curX + w*0.25, curY); ctx.lineTo(curX + w*0.75, curY);
+                        ctx.lineTo(curX + w, curY + h*0.5); ctx.lineTo(curX + w*0.75, curY + h);
+                        ctx.lineTo(curX + w*0.25, curY + h); ctx.lineTo(curX, curY + h*0.5);
+                        ctx.closePath(); ctx.clip();
+                    } else if(gridType === 'squircle') {
+                        const r_val = Math.min(w,h) * 0.3;
+                        ctx.beginPath(); ctx.roundRect(curX, curY, w, h, r_val); ctx.clip();
+                    }
+
+                    if(data.imageId) {
+                        const img = new Image();
+                        img.src = images.find(i => i.id === data.imageId).url;
+                        ctx.drawImage(img, curX, curY, w, h);
+                    } else {
+                        ctx.fillStyle = data.color;
+                        ctx.fillRect(curX, curY, w, h);
+                    }
+                    ctx.restore();
+                }
+                curX += w;
+            }
+            curY += h;
+        }
+        window.open(canvas.toDataURL());
+    }
+
+    function toggleGridLines() {
+        document.getElementById('grid-container').classList.toggle('hide-grid-lines');
+    }
+
+    // --- Event Listeners ---
+    window.onmousedown = () => isMouseDown = true;
+    window.onmouseup = () => {
+        isMouseDown = false;
+        if(resizingInfo) {
+            resizingInfo = null;
+            saveHistory();
+        }
+    };
+
+    window.onmousemove = (e) => {
+        if(!resizingInfo) return;
+        
+        const container = document.getElementById('grid-container').getBoundingClientRect();
+        const { type, index, startSizes } = resizingInfo;
+        
+        if(type === 'col') {
+            const rect = document.getElementById('grid-container').getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const totalWidth = rect.width;
+            
+            // Calculate new proportion
+            const totalProp = startSizes.reduce((a,b) => a+b, 0);
+            let leftAccum = 0;
+            for(let i=0; i < index - 1; i++) leftAccum += (startSizes[i]/totalProp) * totalWidth;
+            
+            const newSizeLeft = Math.max(0.1, (mouseX - leftAccum) / (totalWidth / totalProp));
+            const diff = newSizeLeft - startSizes[index-1];
+            
+            colSizes[index-1] = newSizeLeft;
+            colSizes[index] = Math.max(0.1, startSizes[index] - diff);
+            
+            if(document.getElementById('sym-v').checked) colSizes = mirrorArray(colSizes);
+        } else {
+            const rect = document.getElementById('grid-container').getBoundingClientRect();
+            const mouseY = e.clientY - rect.top;
+            const totalHeight = rect.height;
+            const totalProp = startSizes.reduce((a,b) => a+b, 0);
+            
+            let topAccum = 0;
+            for(let i=0; i < index - 1; i++) topAccum += (startSizes[i]/totalProp) * totalHeight;
+            
+            const newSizeTop = Math.max(0.1, (mouseY - topAccum) / (totalHeight / totalProp));
+            const diff = newSizeTop - startSizes[index-1];
+            
+            rowSizes[index-1] = newSizeTop;
+            rowSizes[index] = Math.max(0.1, startSizes[index] - diff);
+
+            if(document.getElementById('sym-h').checked) rowSizes = mirrorArray(rowSizes);
+        }
+        
+        // Throttled redraw
+        if(Math.random() > 0.8) renderGrid();
+    };
+
+    init();
+</script>
+
+</body>
+</html>

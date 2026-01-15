@@ -1,0 +1,1869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grid Visualizer</title>
+  <style>
+    :root {
+      --bg-color: #f5f5f5;
+      --panel-bg: #ffffff;
+      --border-color: #e5e5e5;
+      --text-primary: #1a1a1a;
+      --text-secondary: #717171;
+      --accent: #0066ff;
+      --cell-bg: #e8e8e8;
+      --gap: 16px;
+      --radius: 12px;
+      --columns: 4;
+      --cell-size: 1fr;
+      --cell-height: 180px;
+      --padding-x: 8px;
+      --padding-y: 8px;
+      --tilt-intensity: 10;
+      --shadow-intensity: 15;
+      --grid-width: 1400px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-color);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Layout */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Toolbar (horizontal) */
+    .sidebar {
+      width: 100%;
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+      transition: transform 0.3s ease, margin-top 0.3s ease;
+      position: relative;
+      z-index: 50;
+      overflow: hidden;
+    }
+
+    .sidebar.hidden {
+      transform: translateY(-100%);
+      margin-top: -140px;
+      pointer-events: none;
+    }
+
+    .sidebar.preview-hidden {
+      display: none;
+    }
+
+    .toolbar-content {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      padding: 16px 24px;
+      min-height: 120px;
+      overflow-y: auto;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--panel-bg);
+    }
+
+    .sidebar-header h1 {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .preview-btn {
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      background: var(--text-primary);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .preview-btn:hover {
+      opacity: 0.8;
+    }
+
+    .preview-btn.active {
+      background: var(--accent);
+    }
+
+    .reset-all-btn {
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .reset-all-btn:hover {
+      background: #fee2e2;
+      border-color: #fca5a5;
+      color: #dc2626;
+    }
+
+    /* Resize Handle */
+    .toolbar-resize {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 8px;
+      cursor: ns-resize;
+      background: transparent;
+      transition: background 0.2s;
+      z-index: 10;
+    }
+
+    .toolbar-resize:hover,
+    .toolbar-resize.dragging {
+      background: var(--accent);
+    }
+
+    .toolbar-resize::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 32px;
+      height: 3px;
+      background: var(--border-color);
+      border-radius: 2px;
+      transition: background 0.2s;
+    }
+
+    .toolbar-resize:hover::after,
+    .toolbar-resize.dragging::after {
+      background: white;
+    }
+
+    /* Control Groups */
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .control-group-title {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+    }
+
+    .control {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .control-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .control-label {
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .control-value {
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Sliders */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      background: var(--border-color);
+      border-radius: 2px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      background: var(--text-primary);
+      border-radius: 50%;
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      background: var(--text-primary);
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
+    }
+
+    /* Color Picker */
+    .color-picker-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    input[type="color"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      cursor: pointer;
+      padding: 2px;
+    }
+
+    input[type="color"]::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
+
+    input[type="color"]::-webkit-color-swatch {
+      border: none;
+      border-radius: 6px;
+    }
+
+    /* Linked Controls */
+    .linked-control {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .linked-control-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .linked-control-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .linked-control-row .sub-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      width: 14px;
+      flex-shrink: 0;
+    }
+
+    .linked-control-row input[type="range"] {
+      flex: 1;
+    }
+
+    .link-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .link-checkbox input {
+      width: 14px;
+      height: 14px;
+      cursor: pointer;
+    }
+
+    .color-hex {
+      font-size: 12px;
+      font-family: 'SF Mono', Monaco, monospace;
+      color: var(--text-secondary);
+    }
+
+    /* Cell Count Control */
+    .cell-count-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cell-count-control input[type="range"] {
+      flex: 1;
+    }
+
+    .cell-count-control input[type="number"] {
+      width: 48px;
+      padding: 4px 6px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-size: 11px;
+      text-align: center;
+      background: var(--bg-color);
+    }
+
+    .cell-count-control input[type="number"]:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    /* Reset Button */
+    .reset-btn {
+      width: 18px;
+      height: 18px;
+      padding: 0;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: background 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+
+    .reset-btn:hover {
+      background: var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .reset-btn svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    /* Main Grid Area */
+    .main {
+      flex: 1;
+      padding: 32px;
+      overflow: auto;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      transition: padding 0.3s ease;
+    }
+
+    .main.preview-mode {
+      padding: 32px;
+      background: var(--bg-color);
+    }
+
+    .main.toolbar-hidden {
+      /* No extra padding needed, toolbar slides out */
+    }
+
+    .grid-container {
+      width: 100%;
+      max-width: var(--grid-width, 1400px);
+      background: var(--bg-color);
+      min-height: calc(100vh - 200px);
+      padding: 24px;
+      border-radius: 12px;
+      transition: all 0.3s ease;
+    }
+
+    .main.preview-mode .grid-container {
+      min-height: auto;
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    /* Grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(var(--columns), 1fr);
+      gap: var(--gap);
+      grid-auto-rows: var(--cell-height);
+      grid-auto-flow: dense;
+    }
+
+    /* Grid Cells */
+    .cell {
+      background: var(--cell-bg);
+      border-radius: var(--radius);
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      min-height: var(--cell-height);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .cell.drag-over {
+      outline: 2px dashed var(--accent);
+      outline-offset: -2px;
+    }
+
+    .cell.selected {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+      overflow: visible;
+    }
+
+    /* Cell Sizes */
+    .cell[data-width="2"] {
+      grid-column: span 2;
+    }
+
+    .cell[data-height="2"] {
+      grid-row: span 2;
+    }
+
+    .cell[data-width="2"][data-height="2"] {
+      grid-column: span 2;
+      grid-row: span 2;
+    }
+
+    /* Empty Cell State */
+    .cell-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-secondary);
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .cell-placeholder svg {
+      width: 32px;
+      height: 32px;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      fill: none;
+    }
+
+    .cell-placeholder span {
+      font-size: 12px;
+    }
+
+    .cell.has-image .cell-placeholder {
+      display: none;
+    }
+
+    /* Cell Image */
+    .cell-image {
+      position: absolute;
+      top: var(--padding-y);
+      left: var(--padding-x);
+      right: var(--padding-x);
+      bottom: var(--padding-y);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      perspective: 1000px;
+    }
+
+    .cell-image img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      border-radius: calc(var(--radius) - 4px);
+      transition: transform 0.25s ease-out, box-shadow 0.3s ease-out;
+      will-change: transform, box-shadow;
+      box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+    }
+
+    /* Resize Handles */
+    .resize-handles {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .cell.selected .resize-handles {
+      opacity: 1;
+    }
+
+    .resize-handle {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      background: var(--accent);
+      border-radius: 4px;
+      pointer-events: auto;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.15s ease;
+    }
+
+    .resize-handle:hover {
+      transform: scale(1.1);
+    }
+
+    .resize-handle svg {
+      width: 12px;
+      height: 12px;
+      stroke: white;
+      stroke-width: 2;
+      fill: none;
+    }
+
+    .resize-handle.right {
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .resize-handle.right:hover {
+      transform: translateY(-50%) scale(1.1);
+    }
+
+    .resize-handle.bottom {
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .resize-handle.bottom:hover {
+      transform: translateX(-50%) scale(1.1);
+    }
+
+    .resize-handle.corner {
+      right: 8px;
+      bottom: 8px;
+    }
+
+    /* Cell Controls (per-image adjustments) */
+    .cell-controls {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      margin-top: 8px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      border-radius: 8px;
+      padding: 12px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 100;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    }
+
+    .cell.selected.has-image .cell-controls {
+      display: flex;
+    }
+
+    .cell-controls * {
+      -webkit-user-drag: none;
+      user-drag: none;
+    }
+
+    .cell-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cell-control label {
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--text-secondary);
+      width: 50px;
+      flex-shrink: 0;
+    }
+
+    .cell-control input[type="range"] {
+      flex: 1;
+      height: 3px;
+    }
+
+    .cell-control input[type="range"]::-webkit-slider-thumb {
+      width: 10px;
+      height: 10px;
+    }
+
+    /* Add Cell Button */
+    .add-cell-btn {
+      border: 2px dashed var(--border-color);
+      background: transparent;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .add-cell-btn:hover {
+      border-color: var(--accent);
+      background: rgba(0, 102, 255, 0.03);
+      transform: none;
+      box-shadow: none;
+    }
+
+    .add-cell-btn .cell-placeholder {
+      opacity: 0.4;
+    }
+
+    .add-cell-btn:hover .cell-placeholder {
+      opacity: 0.7;
+    }
+
+    /* Preview Mode Exit Button */
+    .exit-preview {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      background: var(--text-primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+      z-index: 100;
+    }
+
+    .preview-mode .exit-preview {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .exit-preview:hover {
+      opacity: 0.9;
+    }
+
+    /* Dragging states */
+    .cell.dragging {
+      opacity: 0.5;
+    }
+
+    .cell.drag-target {
+      background: rgba(0, 102, 255, 0.1);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Toolbar (horizontal) -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h1>Grid Visualizer</h1>
+        <div class="header-actions">
+          <button class="reset-all-btn" id="resetAllBtn" title="Reset all">Reset</button>
+          <button class="preview-btn" id="previewBtn">Preview</button>
+        </div>
+      </div>
+
+      <div class="toolbar-content" id="toolbarContent">
+        <!-- Column 1: Layout Controls -->
+        <div class="control-group">
+          <span class="control-group-title">Layout</span>
+          
+          <div class="control">
+            <div class="control-header">
+              <label class="control-label">Columns</label>
+              <span class="control-value" id="columnsValue">4</span>
+            </div>
+            <input type="range" id="columns" min="2" max="8" value="4">
+          </div>
+
+          <div class="control">
+            <div class="control-header">
+              <label class="control-label">Gap</label>
+              <span class="control-value" id="gapValue">16px</span>
+            </div>
+            <input type="range" id="gap" min="0" max="40" value="16">
+          </div>
+
+          <div class="control">
+            <div class="control-header">
+              <label class="control-label">Corner Radius</label>
+              <span class="control-value" id="radiusValue">12px</span>
+            </div>
+            <input type="range" id="radius" min="0" max="32" value="12">
+          </div>
+
+          <div class="control">
+            <div class="control-header">
+              <label class="control-label">Cell Height</label>
+              <span class="control-value" id="cellHeightValue">180px</span>
+            </div>
+            <input type="range" id="cellHeight" min="80" max="400" value="180">
+          </div>
+
+          <div class="control">
+            <div class="control-header">
+              <label class="control-label">Grid Width</label>
+              <span class="control-value" id="gridWidthValue">1400px</span>
+            </div>
+            <input type="range" id="gridWidth" min="600" max="2400" value="1400" step="50">
+          </div>
+        </div>
+
+        <!-- Column 2: Spacing & Background -->
+        <div class="control-group">
+          <span class="control-group-title">Spacing & Style</span>
+
+          <div class="control">
+            <div class="control-header">
+              <label class="control-label">Background</label>
+            </div>
+            <div class="color-picker-wrapper">
+              <input type="color" id="bgColor" value="#f5f5f5">
+              <span class="color-hex" id="bgColorValue">#f5f5f5</span>
+            </div>
+          </div>
+
+          <div class="control">
+            <div class="control-header">
+              <label class="control-label">Global Scale</label>
+              <span class="control-value" id="scaleValue">80%</span>
+            </div>
+            <input type="range" id="globalScale" min="50" max="150" value="80">
+          </div>
+
+          <div class="control">
+            <div class="control-header">
+              <label class="control-label">Cells</label>
+              <span class="control-value" id="cellCountValue">8</span>
+            </div>
+            <div class="cell-count-control">
+              <input type="range" id="cellCount" min="1" max="50" value="8">
+              <input type="number" id="cellCountInput" min="1" max="100" value="8">
+            </div>
+          </div>
+        </div>
+
+        <!-- Column 3: Hover Effects -->
+        <div class="control-group">
+          <span class="control-group-title">Hover Effects</span>
+          
+          <div class="control">
+            <div class="control-header">
+              <label class="control-label">Tilt Intensity</label>
+              <span class="control-value" id="tiltValue">6°</span>
+            </div>
+            <input type="range" id="tiltIntensity" min="0" max="25" value="6">
+          </div>
+
+          <div class="control">
+            <div class="control-header">
+              <label class="control-label">Shadow Intensity</label>
+              <span class="control-value" id="shadowValue">7%</span>
+            </div>
+            <input type="range" id="shadowIntensity" min="0" max="40" value="7">
+          </div>
+
+          <div class="control">
+            <label class="link-checkbox">
+              <input type="checkbox" id="scaleBySize" checked>
+              Scale by size
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resize Handle -->
+      <div class="toolbar-resize" id="toolbarResize"></div>
+    </aside>
+
+    <!-- Main Grid Area -->
+    <main class="main" id="main">
+      <button class="exit-preview" id="exitPreview">Exit Preview</button>
+      <div class="grid-container" id="gridContainer">
+        <div class="grid" id="grid">
+          <!-- Cells will be added here -->
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // State
+    const state = {
+      columns: 4,
+      gap: 16,
+      radius: 12,
+      cellHeight: 180,
+      gridWidth: 1400,
+      paddingX: 8,
+      paddingY: 8,
+      linkPadding: true,
+      bgColor: '#f5f5f5',
+      globalScale: 80,
+      tiltIntensity: 6,
+      shadowIntensity: 7,
+      scaleBySize: true,
+      cellCount: 8,
+      cells: [],
+      selectedCell: null,
+      previewMode: false,
+      draggedCell: null
+    };
+
+    // Default state for reset
+    const defaultState = JSON.parse(JSON.stringify(state));
+
+    // localStorage key
+    const STORAGE_KEY = 'gridVisualizerState';
+
+    // Save state to localStorage
+    function saveState() {
+      const saveData = {
+        columns: state.columns,
+        gap: state.gap,
+        radius: state.radius,
+        cellHeight: state.cellHeight,
+        gridWidth: state.gridWidth,
+        bgColor: state.bgColor,
+        globalScale: state.globalScale,
+        tiltIntensity: state.tiltIntensity,
+        shadowIntensity: state.shadowIntensity,
+        scaleBySize: state.scaleBySize,
+        cells: state.cells
+      };
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
+      } catch (e) {
+        console.warn('Could not save state:', e);
+      }
+    }
+
+    // Load state from localStorage
+    function loadState() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const data = JSON.parse(saved);
+          Object.assign(state, data);
+          return true;
+        }
+      } catch (e) {
+        console.warn('Could not load state:', e);
+      }
+      return false;
+    }
+
+    // Reset to default state
+    function resetAll() {
+      if (!confirm('Reset all settings and clear all images?')) return;
+      
+      localStorage.removeItem(STORAGE_KEY);
+      
+      // Reset state to defaults
+      state.columns = defaultState.columns;
+      state.gap = defaultState.gap;
+      state.radius = defaultState.radius;
+      state.cellHeight = defaultState.cellHeight;
+      state.gridWidth = defaultState.gridWidth;
+      state.bgColor = defaultState.bgColor;
+      state.globalScale = defaultState.globalScale;
+      state.tiltIntensity = defaultState.tiltIntensity;
+      state.shadowIntensity = defaultState.shadowIntensity;
+      state.scaleBySize = defaultState.scaleBySize;
+      state.cells = [];
+      state.cellCount = defaultState.cellCount;
+      state.selectedCell = null;
+      
+      // Create fresh cells
+      for (let i = 0; i < defaultState.cellCount; i++) {
+        addCell();
+      }
+      
+      // Update UI
+      syncUIToState();
+      renderGrid();
+      updateGrid();
+    }
+
+    // Sync UI controls to state values
+    function syncUIToState() {
+      columnsSlider.value = state.columns;
+      columnsValue.textContent = state.columns;
+      
+      gapSlider.value = state.gap;
+      gapValue.textContent = state.gap + 'px';
+      
+      radiusSlider.value = state.radius;
+      radiusValue.textContent = state.radius + 'px';
+      
+      cellHeightSlider.value = state.cellHeight;
+      cellHeightValue.textContent = state.cellHeight + 'px';
+      
+      gridWidthSlider.value = state.gridWidth;
+      gridWidthValue.textContent = state.gridWidth + 'px';
+      
+      bgColorPicker.value = state.bgColor;
+      bgColorValue.textContent = state.bgColor;
+      
+      globalScaleSlider.value = state.globalScale;
+      scaleValue.textContent = state.globalScale + '%';
+      
+      tiltIntensitySlider.value = state.tiltIntensity;
+      tiltValue.textContent = state.tiltIntensity + '°';
+      
+      shadowIntensitySlider.value = state.shadowIntensity;
+      shadowValue.textContent = state.shadowIntensity + '%';
+      
+      scaleBySizeCheckbox.checked = state.scaleBySize;
+      
+      cellCountSlider.value = Math.min(state.cells.length, 50);
+      cellCountInput.value = state.cells.length;
+      cellCountValue.textContent = state.cells.length;
+    }
+
+    // DOM Elements
+    const grid = document.getElementById('grid');
+    const sidebar = document.getElementById('sidebar');
+    const main = document.getElementById('main');
+    const gridContainer = document.getElementById('gridContainer');
+    const previewBtn = document.getElementById('previewBtn');
+    const exitPreview = document.getElementById('exitPreview');
+    const resetAllBtn = document.getElementById('resetAllBtn');
+
+    // Controls
+    const columnsSlider = document.getElementById('columns');
+    const gapSlider = document.getElementById('gap');
+    const radiusSlider = document.getElementById('radius');
+    const cellHeightSlider = document.getElementById('cellHeight');
+    const gridWidthSlider = document.getElementById('gridWidth');
+    const bgColorPicker = document.getElementById('bgColor');
+    const globalScaleSlider = document.getElementById('globalScale');
+    const tiltIntensitySlider = document.getElementById('tiltIntensity');
+    const shadowIntensitySlider = document.getElementById('shadowIntensity');
+    const scaleBySizeCheckbox = document.getElementById('scaleBySize');
+    const cellCountSlider = document.getElementById('cellCount');
+    const cellCountInput = document.getElementById('cellCountInput');
+
+    // Value displays
+    const columnsValue = document.getElementById('columnsValue');
+    const gapValue = document.getElementById('gapValue');
+    const radiusValue = document.getElementById('radiusValue');
+    const cellHeightValue = document.getElementById('cellHeightValue');
+    const gridWidthValue = document.getElementById('gridWidthValue');
+    const bgColorValue = document.getElementById('bgColorValue');
+    const scaleValue = document.getElementById('scaleValue');
+    const tiltValue = document.getElementById('tiltValue');
+    const shadowValue = document.getElementById('shadowValue');
+    const cellCountValue = document.getElementById('cellCountValue');
+
+    // Initialize
+    function init() {
+      const hasStoredState = loadState();
+      
+      if (hasStoredState && state.cells.length > 0) {
+        // Restore from localStorage
+        syncUIToState();
+        renderGrid();
+      } else {
+        // Fresh start with default cells
+        for (let i = 0; i < 8; i++) {
+          addCell();
+        }
+        renderGrid();
+      }
+      
+      updateGrid();
+      bindEvents();
+    }
+
+    // Create cell element
+    function createCell(cellData) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.id = cellData.id;
+      cell.dataset.width = cellData.width || 1;
+      cell.dataset.height = cellData.height || 1;
+      cell.draggable = true;
+
+      cell.innerHTML = `
+        <div class="cell-placeholder">
+          <svg viewBox="0 0 24 24">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <path d="M21 15l-5-5L5 21"/>
+          </svg>
+          <span>Drop image</span>
+        </div>
+        <div class="cell-image"></div>
+        <div class="resize-handles">
+          <div class="resize-handle right" data-dir="right">
+            <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+          </div>
+          <div class="resize-handle bottom" data-dir="bottom">
+            <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="resize-handle corner" data-dir="corner">
+            <svg viewBox="0 0 24 24"><path d="M7 17L17 7M17 7v10M17 7H7"/></svg>
+          </div>
+        </div>
+        <div class="cell-controls">
+          <div class="cell-control">
+            <label>Scale</label>
+            <input type="range" class="cell-scale" min="50" max="150" value="${cellData.scale || 100}">
+            <button class="reset-btn reset-scale" title="Reset Scale">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+              </svg>
+            </button>
+          </div>
+          <div class="cell-control">
+            <label>X</label>
+            <input type="range" class="cell-x" min="-50" max="50" value="${cellData.x || 0}">
+            <button class="reset-btn reset-x" title="Reset X">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+              </svg>
+            </button>
+          </div>
+          <div class="cell-control">
+            <label>Y</label>
+            <input type="range" class="cell-y" min="-50" max="50" value="${cellData.y || 0}">
+            <button class="reset-btn reset-y" title="Reset Y">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      `;
+
+      // Cell click to select
+      cell.addEventListener('click', (e) => {
+        if (e.target.closest('.resize-handle') || e.target.closest('.cell-controls')) return;
+        selectCell(cellData.id);
+      });
+
+      // Resize handles
+      cell.querySelectorAll('.resize-handle').forEach(handle => {
+        handle.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const dir = handle.dataset.dir;
+          toggleCellSize(cellData.id, dir);
+        });
+      });
+
+      // Reset buttons
+      const resetScale = cell.querySelector('.reset-scale');
+      const resetX = cell.querySelector('.reset-x');
+      const resetY = cell.querySelector('.reset-y');
+
+      resetScale.addEventListener('click', (e) => {
+        e.stopPropagation();
+        cellData.scale = 100;
+        cell.querySelector('.cell-scale').value = 100;
+        updateCellImage(cell, cellData);
+        saveState();
+      });
+
+      resetX.addEventListener('click', (e) => {
+        e.stopPropagation();
+        cellData.x = 0;
+        cell.querySelector('.cell-x').value = 0;
+        updateCellImage(cell, cellData);
+        saveState();
+      });
+
+      resetY.addEventListener('click', (e) => {
+        e.stopPropagation();
+        cellData.y = 0;
+        cell.querySelector('.cell-y').value = 0;
+        updateCellImage(cell, cellData);
+        saveState();
+      });
+
+      // Per-cell image controls
+      const scaleInput = cell.querySelector('.cell-scale');
+      const xInput = cell.querySelector('.cell-x');
+      const yInput = cell.querySelector('.cell-y');
+
+      scaleInput.addEventListener('input', (e) => {
+        e.stopPropagation();
+        cellData.scale = parseInt(e.target.value);
+        updateCellImage(cell, cellData);
+      });
+      scaleInput.addEventListener('change', saveState);
+
+      xInput.addEventListener('input', (e) => {
+        e.stopPropagation();
+        cellData.x = parseInt(e.target.value);
+        updateCellImage(cell, cellData);
+      });
+      xInput.addEventListener('change', saveState);
+
+      yInput.addEventListener('input', (e) => {
+        e.stopPropagation();
+        cellData.y = parseInt(e.target.value);
+        updateCellImage(cell, cellData);
+      });
+      yInput.addEventListener('change', saveState);
+
+      // Mouse tracking for tilt effect
+      const cellImage = cell.querySelector('.cell-image');
+      let tiltTimeout = null;
+      let tiltActive = false;
+      let currentRotateX = 0;
+      let currentRotateY = 0;
+      let targetRotateX = 0;
+      let targetRotateY = 0;
+      let animationFrame = null;
+      let isOverImage = false;
+      let isHovering = false;
+      let currentHoverScale = 1; // multiplier on top of base scale
+      
+      // Helper: get actual rendered image bounds within cell
+      const getImageBounds = (img, cellRect) => {
+        const containerWidth = cellRect.width;
+        const containerHeight = cellRect.height;
+        const imgRatio = img.naturalWidth / img.naturalHeight;
+        const containerRatio = containerWidth / containerHeight;
+        
+        let renderedWidth, renderedHeight;
+        
+        if (imgRatio > containerRatio) {
+          // Image is wider - constrained by width
+          renderedWidth = containerWidth;
+          renderedHeight = containerWidth / imgRatio;
+        } else {
+          // Image is taller - constrained by height
+          renderedHeight = containerHeight;
+          renderedWidth = containerHeight * imgRatio;
+        }
+        
+        // Account for global and per-image scale
+        const totalScale = (state.globalScale / 100) * ((cellData.scale || 100) / 100);
+        renderedWidth *= totalScale;
+        renderedHeight *= totalScale;
+        
+        // Center position within container
+        const offsetX = (containerWidth - renderedWidth) / 2;
+        const offsetY = (containerHeight - renderedHeight) / 2;
+        
+        return {
+          x: offsetX,
+          y: offsetY,
+          width: renderedWidth,
+          height: renderedHeight
+        };
+      };
+      
+      // Calculate size-aware hover scale target
+      const getHoverScaleTarget = () => {
+        if (!state.scaleBySize) return 1.05; // Fixed 5% when disabled
+        
+        const img = cellImage.querySelector('img');
+        if (!img || !img.naturalWidth) return 1.05;
+        
+        const cellRect = cell.getBoundingClientRect();
+        const imgBounds = getImageBounds(img, cellRect);
+        
+        // Same logic as tilt - smaller images get more scale boost
+        const baseDimension = 320;
+        const avgDimension = (imgBounds.width + imgBounds.height) / 2;
+        const sizeMultiplier = Math.min(baseDimension / avgDimension, 2.5);
+        
+        // Base scale boost of 2%, multiplied by size factor (max ~5% for small, ~2% for large)
+        const scaleBoost = 0.02 * sizeMultiplier;
+        return 1 + scaleBoost;
+      };
+      
+      // Smooth interpolation for tilt and scale
+      const lerpTilt = () => {
+        const lerpFactor = 0.08;
+        let needsUpdate = false;
+        
+        // Lerp tilt
+        if (tiltActive && isOverImage) {
+          currentRotateX += (targetRotateX - currentRotateX) * lerpFactor;
+          currentRotateY += (targetRotateY - currentRotateY) * lerpFactor;
+          needsUpdate = true;
+        } else if (currentRotateX !== 0 || currentRotateY !== 0) {
+          currentRotateX += (0 - currentRotateX) * lerpFactor;
+          currentRotateY += (0 - currentRotateY) * lerpFactor;
+          if (Math.abs(currentRotateX) < 0.01) currentRotateX = 0;
+          if (Math.abs(currentRotateY) < 0.01) currentRotateY = 0;
+          needsUpdate = true;
+        }
+        
+        // Lerp hover scale (recalculate target in case size-aware is toggled)
+        const scaleTarget = isHovering ? getHoverScaleTarget() : 1;
+        if (Math.abs(currentHoverScale - scaleTarget) > 0.001) {
+          currentHoverScale += (scaleTarget - currentHoverScale) * lerpFactor;
+          needsUpdate = true;
+        } else {
+          currentHoverScale = scaleTarget;
+        }
+        
+        // Apply transform
+        const img = cellImage.querySelector('img');
+        if (img && cellData.image) {
+          const totalScale = (state.globalScale / 100) * ((cellData.scale || 100) / 100);
+          const finalScale = totalScale * currentHoverScale;
+          const translateX = cellData.x || 0;
+          const translateY = cellData.y || 0;
+          
+          img.style.transform = `perspective(1000px) rotateX(${currentRotateX}deg) rotateY(${currentRotateY}deg) scale(${finalScale}) translate(${translateX}%, ${translateY}%)`;
+          
+          // Handle shadow
+          if (isHovering) {
+            const shadowOpacity = state.shadowIntensity / 100;
+            const shadowBlur = 24 + (state.shadowIntensity * 0.5);
+            const shadowY = 8 + (state.shadowIntensity * 0.3);
+            img.style.boxShadow = `0 ${shadowY}px ${shadowBlur}px rgba(0, 0, 0, ${shadowOpacity})`;
+          } else {
+            img.style.boxShadow = '0 0 0 rgba(0, 0, 0, 0)';
+          }
+        }
+        
+        // Continue animation if needed
+        if (needsUpdate || isHovering) {
+          animationFrame = requestAnimationFrame(lerpTilt);
+        } else {
+          animationFrame = null;
+        }
+      };
+      
+      cell.addEventListener('mouseenter', (e) => {
+        if (!cellData.image) return;
+        
+        isHovering = true;
+        
+        // Start animation loop if not running
+        if (!animationFrame) {
+          animationFrame = requestAnimationFrame(lerpTilt);
+        }
+        
+        // Start delay timer for tilt activation
+        tiltTimeout = setTimeout(() => {
+          tiltActive = true;
+        }, 400);
+      });
+      
+      cell.addEventListener('mousemove', (e) => {
+        if (!cellData.image) return;
+        
+        const img = cellImage.querySelector('img');
+        if (!img || !img.naturalWidth) return;
+        
+        const cellRect = cell.getBoundingClientRect();
+        const mouseX = e.clientX - cellRect.left;
+        const mouseY = e.clientY - cellRect.top;
+        
+        // Get actual image bounds
+        const imgBounds = getImageBounds(img, cellRect);
+        
+        // Check if mouse is over the image
+        const overImage = (
+          mouseX >= imgBounds.x &&
+          mouseX <= imgBounds.x + imgBounds.width &&
+          mouseY >= imgBounds.y &&
+          mouseY <= imgBounds.y + imgBounds.height
+        );
+        
+        isOverImage = overImage;
+        
+        if (overImage) {
+          // Calculate position within image bounds as -1 to 1
+          const xInImage = mouseX - imgBounds.x;
+          const yInImage = mouseY - imgBounds.y;
+          const xPercent = (xInImage / imgBounds.width - 0.5) * 2;
+          const yPercent = (yInImage / imgBounds.height - 0.5) * 2;
+          
+          // Scale tilt intensity by image size (smaller images get more tilt)
+          const baseDimension = 320;
+          const avgDimension = (imgBounds.width + imgBounds.height) / 2;
+          const sizeMultiplier = Math.min(baseDimension / avgDimension, 2.5);
+          const adjustedIntensity = state.tiltIntensity * sizeMultiplier;
+          
+          // Update target rotation
+          targetRotateY = xPercent * adjustedIntensity;
+          targetRotateX = -yPercent * adjustedIntensity;
+        }
+      });
+
+      cell.addEventListener('mouseleave', () => {
+        // Clear the delay timer
+        if (tiltTimeout) {
+          clearTimeout(tiltTimeout);
+          tiltTimeout = null;
+        }
+        
+        // Deactivate everything
+        tiltActive = false;
+        isOverImage = false;
+        isHovering = false;
+        targetRotateX = 0;
+        targetRotateY = 0;
+        
+        // Keep animation running to ease out
+        if (!animationFrame) {
+          animationFrame = requestAnimationFrame(lerpTilt);
+        }
+      });
+
+      // Drag and drop for images
+      cell.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (state.draggedCell) {
+          cell.classList.add('drag-target');
+        } else {
+          cell.classList.add('drag-over');
+        }
+      });
+
+      cell.addEventListener('dragleave', () => {
+        cell.classList.remove('drag-over', 'drag-target');
+      });
+
+      cell.addEventListener('drop', (e) => {
+        e.preventDefault();
+        cell.classList.remove('drag-over', 'drag-target');
+
+        // Handle cell swap
+        if (state.draggedCell && state.draggedCell !== cellData.id) {
+          swapCells(state.draggedCell, cellData.id);
+          state.draggedCell = null;
+          return;
+        }
+
+        // Handle image drop
+        const files = e.dataTransfer.files;
+        if (files.length > 0 && files[0].type.startsWith('image/')) {
+          loadImage(files[0], cellData, cell);
+        }
+      });
+
+      // Drag cell for reordering
+      cell.addEventListener('dragstart', (e) => {
+        // Prevent drag when interacting with cell controls
+        if (e.target.closest('.cell-controls')) {
+          e.preventDefault();
+          return;
+        }
+        if (!cellData.image) {
+          e.preventDefault();
+          return;
+        }
+        state.draggedCell = cellData.id;
+        cell.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+
+      cell.addEventListener('dragend', () => {
+        cell.classList.remove('dragging');
+        state.draggedCell = null;
+        document.querySelectorAll('.cell').forEach(c => c.classList.remove('drag-target'));
+      });
+
+      // Update image if exists
+      if (cellData.image) {
+        cell.classList.add('has-image');
+        updateCellImage(cell, cellData);
+      }
+
+      return cell;
+    }
+
+    // Add new cell
+    function addCell(data = {}) {
+      const cellData = {
+        id: Date.now() + Math.random(),
+        width: data.width || 1,
+        height: data.height || 1,
+        image: data.image || null,
+        scale: data.scale || 100,
+        x: data.x || 0,
+        y: data.y || 0
+      };
+      state.cells.push(cellData);
+      return cellData;
+    }
+
+    // Add "Add Cell" button
+    function addAddButton() {
+      const existing = grid.querySelector('.add-cell-btn');
+      if (existing) existing.remove();
+
+      const btn = document.createElement('div');
+      btn.className = 'cell add-cell-btn';
+      btn.innerHTML = `
+        <div class="cell-placeholder">
+          <svg viewBox="0 0 24 24">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span>Add cell</span>
+        </div>
+      `;
+      btn.addEventListener('click', () => {
+        const cellData = addCell();
+        const cellEl = createCell(cellData);
+        grid.insertBefore(cellEl, btn);
+      });
+
+      // Allow dropping images to create new cell
+      btn.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (!state.draggedCell) {
+          btn.classList.add('drag-over');
+        }
+      });
+
+      btn.addEventListener('dragleave', () => {
+        btn.classList.remove('drag-over');
+      });
+
+      btn.addEventListener('drop', (e) => {
+        e.preventDefault();
+        btn.classList.remove('drag-over');
+        if (state.draggedCell) return;
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0 && files[0].type.startsWith('image/')) {
+          const cellData = addCell();
+          const cellEl = createCell(cellData);
+          grid.insertBefore(cellEl, btn);
+          loadImage(files[0], cellData, cellEl);
+        }
+      });
+
+      grid.appendChild(btn);
+    }
+
+    // Load image into cell
+    function loadImage(file, cellData, cellEl) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        cellData.image = e.target.result;
+        cellEl.classList.add('has-image');
+        updateCellImage(cellEl, cellData);
+        saveState();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Update cell image display
+    function updateCellImage(cellEl, cellData) {
+      if (!cellData.image) return;
+
+      const imageContainer = cellEl.querySelector('.cell-image');
+      const totalScale = (state.globalScale / 100) * (cellData.scale / 100);
+      const translateX = cellData.x || 0;
+      const translateY = cellData.y || 0;
+
+      imageContainer.innerHTML = `
+        <img 
+          src="${cellData.image}" 
+          style="transform: scale(${totalScale}) translate(${translateX}%, ${translateY}%)"
+          draggable="false"
+        >
+      `;
+    }
+
+    // Select cell
+    function selectCell(id) {
+      // Deselect previous
+      document.querySelectorAll('.cell.selected').forEach(c => c.classList.remove('selected'));
+      
+      if (state.selectedCell === id) {
+        state.selectedCell = null;
+        return;
+      }
+
+      state.selectedCell = id;
+      const cellEl = grid.querySelector(`[data-id="${id}"]`);
+      if (cellEl) cellEl.classList.add('selected');
+    }
+
+    // Toggle cell size
+    function toggleCellSize(id, direction) {
+      const cellData = state.cells.find(c => c.id == id);
+      if (!cellData) return;
+
+      if (direction === 'right') {
+        cellData.width = cellData.width === 1 ? 2 : 1;
+      } else if (direction === 'bottom') {
+        cellData.height = cellData.height === 1 ? 2 : 1;
+      } else if (direction === 'corner') {
+        if (cellData.width === 1 && cellData.height === 1) {
+          cellData.width = 2;
+          cellData.height = 2;
+        } else {
+          cellData.width = 1;
+          cellData.height = 1;
+        }
+      }
+
+      const cellEl = grid.querySelector(`[data-id="${id}"]`);
+      if (cellEl) {
+        cellEl.dataset.width = cellData.width;
+        cellEl.dataset.height = cellData.height;
+      }
+      
+      saveState();
+    }
+
+    // Swap cells
+    function swapCells(id1, id2) {
+      const cell1 = state.cells.find(c => c.id == id1);
+      const cell2 = state.cells.find(c => c.id == id2);
+      if (!cell1 || !cell2) return;
+
+      // Swap images and image properties
+      const temp = {
+        image: cell1.image,
+        scale: cell1.scale,
+        x: cell1.x,
+        y: cell1.y
+      };
+
+      cell1.image = cell2.image;
+      cell1.scale = cell2.scale;
+      cell1.x = cell2.x;
+      cell1.y = cell2.y;
+
+      cell2.image = temp.image;
+      cell2.scale = temp.scale;
+      cell2.x = temp.x;
+      cell2.y = temp.y;
+
+      // Update DOM
+      renderGrid();
+      saveState();
+    }
+
+    // Delete selected cell
+    function deleteSelectedCell() {
+      if (!state.selectedCell) return;
+
+      const index = state.cells.findIndex(c => c.id == state.selectedCell);
+      if (index > -1) {
+        state.cells.splice(index, 1);
+        state.selectedCell = null;
+        state.cellCount = state.cells.length;
+        renderGrid();
+        saveState();
+      }
+    }
+
+    // Render grid
+    function renderGrid() {
+      grid.innerHTML = '';
+      state.cells.forEach(cellData => {
+        const cellEl = createCell(cellData);
+        grid.appendChild(cellEl);
+      });
+      // Update cell count display
+      cellCountValue.textContent = state.cells.length;
+      cellCountSlider.value = Math.min(state.cells.length, 50);
+      cellCountInput.value = state.cells.length;
+    }
+
+    // Update grid styles
+    function updateGrid() {
+      document.documentElement.style.setProperty('--columns', state.columns);
+      document.documentElement.style.setProperty('--gap', state.gap + 'px');
+      document.documentElement.style.setProperty('--radius', state.radius + 'px');
+      document.documentElement.style.setProperty('--cell-height', state.cellHeight + 'px');
+      document.documentElement.style.setProperty('--grid-width', state.gridWidth + 'px');
+      document.documentElement.style.setProperty('--padding-x', state.paddingX + 'px');
+      document.documentElement.style.setProperty('--padding-y', state.paddingY + 'px');
+      document.documentElement.style.setProperty('--bg-color', state.bgColor);
+
+      // Update all cell images with new global scale
+      state.cells.forEach(cellData => {
+        const cellEl = grid.querySelector(`[data-id="${cellData.id}"]`);
+        if (cellEl && cellData.image) {
+          updateCellImage(cellEl, cellData);
+        }
+      });
+    }
+
+    // Toggle preview mode
+    function togglePreview() {
+      state.previewMode = !state.previewMode;
+      
+      if (state.previewMode) {
+        sidebar.classList.add('preview-hidden');
+        main.classList.add('preview-mode');
+        previewBtn.classList.add('active');
+        state.selectedCell = null;
+        document.querySelectorAll('.cell.selected').forEach(c => c.classList.remove('selected'));
+      } else {
+        sidebar.classList.remove('preview-hidden');
+        sidebar.classList.remove('hidden');
+        main.classList.remove('preview-mode');
+        previewBtn.classList.remove('active');
+      }
+    }
+
+    // Bind events
+    function bindEvents() {
+      // Sliders - all call saveState after updating
+      columnsSlider.addEventListener('input', (e) => {
+        state.columns = parseInt(e.target.value);
+        columnsValue.textContent = state.columns;
+        updateGrid();
+        saveState();
+      });
+
+      gapSlider.addEventListener('input', (e) => {
+        state.gap = parseInt(e.target.value);
+        gapValue.textContent = state.gap + 'px';
+        updateGrid();
+        saveState();
+      });
+
+      radiusSlider.addEventListener('input', (e) => {
+        state.radius = parseInt(e.target.value);
+        radiusValue.textContent = state.radius + 'px';
+        updateGrid();
+        saveState();
+      });
+
+      cellHeightSlider.addEventListener('input', (e) => {
+        state.cellHeight = parseInt(e.target.value);
+        cellHeightValue.textContent = state.cellHeight + 'px';
+        updateGrid();
+        saveState();
+      });
+
+      gridWidthSlider.addEventListener('input', (e) => {
+        state.gridWidth = parseInt(e.target.value);
+        gridWidthValue.textContent = state.gridWidth + 'px';
+        updateGrid();
+        saveState();
+      });
+
+      bgColorPicker.addEventListener('input', (e) => {
+        state.bgColor = e.target.value;
+        bgColorValue.textContent = e.target.value;
+        updateGrid();
+        saveState();
+      });
+
+      globalScaleSlider.addEventListener('input', (e) => {
+        state.globalScale = parseInt(e.target.value);
+        scaleValue.textContent = state.globalScale + '%';
+        updateGrid();
+        saveState();
+      });
+
+      // Cell count controls
+      const updateCellCount = (newCount) => {
+        newCount = Math.max(1, Math.min(100, newCount));
+        const currentCount = state.cells.length;
+        
+        if (newCount > currentCount) {
+          // Add cells
+          for (let i = currentCount; i < newCount; i++) {
+            addCell();
+          }
+        } else if (newCount < currentCount) {
+          // Remove cells from the end
+          state.cells.splice(newCount);
+        }
+        
+        state.cellCount = newCount;
+        cellCountSlider.value = Math.min(newCount, 50);
+        cellCountInput.value = newCount;
+        cellCountValue.textContent = newCount;
+        renderGrid();
+        saveState();
+      };
+
+      cellCountSlider.addEventListener('input', (e) => {
+        updateCellCount(parseInt(e.target.value));
+      });
+
+      cellCountInput.addEventListener('change', (e) => {
+        updateCellCount(parseInt(e.target.value) || 1);
+      });
+
+      cellCountInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.target.blur();
+        }
+      });
+
+      tiltIntensitySlider.addEventListener('input', (e) => {
+        state.tiltIntensity = parseInt(e.target.value);
+        tiltValue.textContent = state.tiltIntensity + '°';
+        saveState();
+      });
+
+      shadowIntensitySlider.addEventListener('input', (e) => {
+        state.shadowIntensity = parseInt(e.target.value);
+        shadowValue.textContent = state.shadowIntensity + '%';
+        saveState();
+      });
+
+      scaleBySizeCheckbox.addEventListener('change', (e) => {
+        state.scaleBySize = e.target.checked;
+        saveState();
+      });
+
+      // Reset button
+      resetAllBtn.addEventListener('click', resetAll);
+
+      // Preview buttons
+      previewBtn.addEventListener('click', togglePreview);
+      exitPreview.addEventListener('click', togglePreview);
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'p' || e.key === 'P') {
+          if (document.activeElement.tagName !== 'INPUT') {
+            togglePreview();
+          }
+        }
+        if (e.key === 'Escape') {
+          if (state.previewMode) {
+            togglePreview();
+          } else {
+            state.selectedCell = null;
+            document.querySelectorAll('.cell.selected').forEach(c => c.classList.remove('selected'));
+          }
+        }
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          if (document.activeElement.tagName !== 'INPUT') {
+            deleteSelectedCell();
+          }
+        }
+      });
+
+      // Click outside to deselect
+      main.addEventListener('click', (e) => {
+        if (e.target === main || e.target === gridContainer || e.target === grid) {
+          state.selectedCell = null;
+          document.querySelectorAll('.cell.selected').forEach(c => c.classList.remove('selected'));
+        }
+      });
+
+      // Global drag and drop (for dropping anywhere)
+      document.addEventListener('dragover', (e) => {
+        e.preventDefault();
+      });
+
+      document.addEventListener('drop', (e) => {
+        e.preventDefault();
+      });
+
+      // Toolbar resize functionality
+      const toolbarResize = document.getElementById('toolbarResize');
+      const toolbarContent = document.getElementById('toolbarContent');
+      let isResizing = false;
+      let startY = 0;
+      let startHeight = 0;
+
+      toolbarResize.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        isResizing = true;
+        startY = e.clientY;
+        startHeight = toolbarContent.offsetHeight;
+        toolbarResize.classList.add('dragging');
+        document.body.style.cursor = 'ns-resize';
+        document.body.style.userSelect = 'none';
+        document.body.style.pointerEvents = 'none';
+        toolbarResize.style.pointerEvents = 'auto';
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        e.preventDefault();
+        const deltaY = e.clientY - startY;
+        const newHeight = Math.min(Math.max(startHeight + deltaY, 80), 280);
+        toolbarContent.style.height = newHeight + 'px';
+        toolbarContent.style.minHeight = newHeight + 'px';
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (isResizing) {
+          isResizing = false;
+          toolbarResize.classList.remove('dragging');
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          document.body.style.pointerEvents = '';
+          toolbarResize.style.pointerEvents = '';
+        }
+      });
+
+      // Scroll hide/show toolbar
+      let lastScrollTop = 0;
+      let scrollThreshold = 50;
+      let toolbarHidden = false;
+
+      main.addEventListener('scroll', () => {
+        if (state.previewMode) return;
+        
+        const scrollTop = main.scrollTop;
+        const scrollDelta = scrollTop - lastScrollTop;
+
+        if (scrollDelta > 10 && scrollTop > scrollThreshold && !toolbarHidden) {
+          // Scrolling down - hide toolbar
+          sidebar.classList.add('hidden');
+          toolbarHidden = true;
+        } else if (scrollDelta < -10 && toolbarHidden) {
+          // Scrolling up - show toolbar
+          sidebar.classList.remove('hidden');
+          toolbarHidden = false;
+        }
+
+        lastScrollTop = scrollTop;
+      });
+    }
+
+    // Start
+    init();
+  </script>
+</body>
+</html>
