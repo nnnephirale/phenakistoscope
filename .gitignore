@@ -31,3 +31,14 @@ yarn-error.log*
 
 # OS
 Thumbs.db
+
+# Exclude all folders except phenakistoscope
+00_MINIS/
+01_TAROT/
+02_CMYKHALFTONE/
+03_SSAVED/
+04_DIDNOTWORK/
+05_SOCIALMEDIAGRID/
+06_CLONECLAUDE/
+07_STCIKERBOOK/
+08_GRIDMAKER/

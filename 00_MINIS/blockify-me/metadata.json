@@ -1,7 +1,0 @@
-{
-  "name": "Blockify Me",
-  "description": "Transform your portrait into a Minecraft-style voxel character using AI.",
-  "requestFramePermissions": [
-    "camera"
-  ]
-}

@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phenakistoscope Maker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cream: #F5F0E8;
+      --cream-light: #FAF8F4;
+      --cream-dark: #E8E2D6;
+      --cream-border: #EBE6DC;
+      --black: #1A1A1A;
+      --black-soft: #2A2A2A;
+      --mustard: #D4A72C;
+      --red: #C54B3C;
+      --font-header: 'UnifrakturMaguntia', cursive;
+      --font-body: 'Space Mono', monospace;
+      --panel-width: 240px;
+      --radius: 8px;
+      --radius-sm: 4px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-body);
+      font-size: 13px;
+      background: var(--cream);
+      color: var(--black);
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    #app { display: flex; height: 100vh; }
+
+    #side-panel {
+      width: var(--panel-width);
+      background: var(--cream-light);
+      border-right: 1px solid var(--cream-border);
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      z-index: 100;
+    }
+
+    .logo {
+      font-family: var(--font-header);
+      font-size: 22px;
+      font-weight: normal;
+      color: var(--black);
+      text-align: center;
+    }
+
+    .panel-section h2 {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--black-soft);
+      margin-bottom: 12px;
+      opacity: 0.6;
+    }
+
+    .tool-group { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .tool-btn {
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--cream-border);
+      border-radius: var(--radius);
+      background: var(--cream);
+      color: var(--black);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+
+    .tool-btn:hover { background: var(--cream-dark); }
+    .tool-btn.active { background: var(--black); color: var(--cream); }
+
+    .upload-btn {
+      width: auto;
+      padding: 0 16px;
+      gap: 8px;
+      font-family: var(--font-body);
+      font-size: 11px;
+    }
+
+    .view-toggle {
+      display: flex;
+      background: var(--cream);
+      border-radius: var(--radius);
+      padding: 4px;
+      border: 1px solid var(--cream-border);
+    }
+
+    .view-btn {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      font-family: var(--font-body);
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .view-btn:hover { background: var(--cream-dark); }
+    .view-btn.active { background: var(--black); color: var(--cream); }
+
+    #main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    #editor-view {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      width: 100%;
+      height: 100%;
+    }
+
+    #editor-view.active { display: flex; }
+
+    #canvas-container {
+      position: relative;
+      width: 900px;
+      height: 900px;
+      background: white;
+      border-radius: var(--radius);
+      box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+      overflow: hidden;
+    }
+
+    #main-canvas, #overlay-canvas, #ghost-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #overlay-canvas, #ghost-canvas { pointer-events: none; }
+
+    #image-controls {
+      position: absolute;
+      pointer-events: none;
+      border: 2px solid var(--mustard);
+      z-index: 50;
+    }
+
+    #image-controls.hidden { display: none; }
+
+    .handle {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background: var(--cream);
+      border: 2px solid var(--mustard);
+      border-radius: 50%;
+      pointer-events: auto;
+    }
+
+    .handle-n { top: -6px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+    .handle-s { bottom: -6px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+    .handle-e { right: -6px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
+    .handle-w { left: -6px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
+
+    .handle-rotate {
+      top: -30px;
+      left: 50%;
+      transform: translateX(-50%);
+      cursor: grab;
+      background: var(--mustard);
+    }
+
+    .handle-rotate::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      width: 2px;
+      height: 18px;
+      background: var(--mustard);
+      transform: translateX(-50%);
+    }
+
+    #frame-carousel {
+      width: 100%;
+      max-width: 900px;
+      overflow: hidden;
+      padding: 16px 0;
+    }
+
+    #carousel-track {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .frame-thumb {
+      position: relative;
+      width: 50px;
+      height: 50px;
+      border-radius: var(--radius-sm);
+      background: white;
+      border: 1px solid var(--cream-border);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      opacity: 0.4;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .frame-thumb:hover { opacity: 0.7; }
+    .frame-thumb.active {
+      width: 70px;
+      height: 70px;
+      opacity: 1;
+      border-color: var(--mustard);
+      border-width: 2px;
+    }
+
+    .frame-thumb canvas { width: 100%; height: 100%; }
+
+    .frame-number {
+      position: absolute;
+      bottom: 4px;
+      right: 4px;
+      font-size: 9px;
+      font-weight: 700;
+      opacity: 0.4;
+    }
+
+    #disc-view {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: var(--cream);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      cursor: pointer;
+    }
+
+    #disc-view.active { display: flex; }
+
+    #exit-disc-btn {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      width: 48px;
+      height: 48px;
+      border: 1px solid var(--cream-border);
+      border-radius: 50%;
+      background: var(--cream-light);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #exit-disc-btn:hover { background: var(--cream-dark); }
+    .hidden { display: none !important; }
+    #canvas-container.drag-over { outline: 3px dashed var(--mustard); outline-offset: -3px; }
+
+    .ghost-controls {
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 11px;
+    }
+
+    .toggle-label input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--mustard);
+    }
+
+    .slider-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .slider-group input[type="range"] {
+      flex: 1;
+      height: 4px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: var(--cream-dark);
+      border-radius: 2px;
+      outline: none;
+    }
+
+    .slider-group input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      background: var(--mustard);
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .slider-group span {
+      font-size: 10px;
+      min-width: 32px;
+      text-align: right;
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <aside id="side-panel">
+      <h1 class="logo">Phenakistoscope</h1>
+      
+      <section class="panel-section">
+        <h2>Drawing</h2>
+        <div class="tool-group">
+          <button class="tool-btn active" data-tool="selection" title="Selection (V)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
+            </svg>
+          </button>
+          <button class="tool-btn" data-tool="brush" title="Brush (B)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+            </svg>
+          </button>
+          <button class="tool-btn" data-tool="eraser" title="Eraser (E)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 20H7L3 16c-.8-.8-.8-2 0-2.8l10-10c.8-.8 2-.8 2.8 0l6 6c.8.8.8 2 0 2.8L16 18"/>
+            </svg>
+          </button>
+          <button class="tool-btn" id="clear-btn" title="Clear Frame">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+            </svg>
+          </button>
+        </div>
+      </section>
+
+      <section class="panel-section">
+        <h2>History</h2>
+        <div class="tool-group">
+          <button class="tool-btn" id="undo-btn" title="Undo (Cmd+Z)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-9-9 9 9 0 00-9 9"/>
+            </svg>
+          </button>
+          <button class="tool-btn" id="redo-btn" title="Redo (Cmd+Shift+Z)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 7v6h-6"/><path d="M3 17a9 9 0 019-9 9 9 0 019 9"/>
+            </svg>
+          </button>
+        </div>
+      </section>
+
+      <section class="panel-section">
+        <h2>Image</h2>
+        <div class="tool-group">
+          <button class="tool-btn upload-btn" id="upload-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <span>Upload</span>
+          </button>
+          <input type="file" id="file-input" accept="image/*" hidden>
+        </div>
+        <label class="toggle-label">
+          <input type="checkbox" id="upload-all-frames">
+          <span>Apply to all frames</span>
+        </label>
+        <div id="position-tracker" class="hidden" style="margin-top: 12px; font-size: 10px;">
+          <div style="margin-bottom: 8px;">
+            <strong>Position (top-left):</strong><br>
+            X: <span id="pos-x">0</span>px, Y: <span id="pos-y">0</span>px
+          </div>
+          <div class="tool-group">
+            <button class="tool-btn" id="copy-position-btn" title="Copy Position" style="width: auto; padding: 0 12px; font-size: 10px;">
+              Copy Pos
+            </button>
+            <button class="tool-btn" id="paste-position-btn" title="Paste Position" style="width: auto; padding: 0 12px; font-size: 10px;">
+              Paste Pos
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-section">
+        <h2>Ghost</h2>
+        <div class="tool-group ghost-controls">
+          <label class="toggle-label">
+            <input type="checkbox" id="ghost-toggle" checked>
+            <span>Show previous frame</span>
+          </label>
+          <div class="slider-group">
+            <input type="range" id="ghost-opacity" min="5" max="50" value="20">
+            <span id="ghost-opacity-value">20%</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-section">
+        <h2>View</h2>
+        <div class="tool-group view-toggle">
+          <button class="view-btn active" data-view="editor">Editor</button>
+          <button class="view-btn" data-view="disc">Disc</button>
+        </div>
+      </section>
+    </aside>
+
+    <main id="main-content">
+      <div id="editor-view" class="view active">
+        <div id="canvas-container">
+          <canvas id="main-canvas" width="900" height="900"></canvas>
+          <canvas id="ghost-canvas" width="900" height="900"></canvas>
+          <canvas id="overlay-canvas" width="900" height="900"></canvas>
+          <div id="image-controls" class="hidden">
+            <div class="handle handle-n"></div>
+            <div class="handle handle-e"></div>
+            <div class="handle handle-s"></div>
+            <div class="handle handle-w"></div>
+            <div class="handle handle-rotate"></div>
+          </div>
+        </div>
+        <div id="frame-carousel">
+          <div id="carousel-track"></div>
+        </div>
+      </div>
+
+      <div id="disc-view" class="view">
+        <canvas id="disc-canvas"></canvas>
+        <button id="exit-disc-btn">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const FRAME_COUNT = 13;
+    const CANVAS_SIZE = 900;
+    const WEDGE_ANGLE = (2 * Math.PI) / FRAME_COUNT;
+    const SNAP_THRESHOLD = 30;
+
+    const state = {
+      currentFrame: 0,
+      tool: 'selection',
+      isDrawing: false,
+      frames: [],
+      images: [],
+      selectedImage: null,
+      copiedImage: null,
+      copiedPosition: null,
+      view: 'editor',
+      ghostEnabled: false,
+      ghostOpacity: 0,
+      uploadToAllFrames: false,
+      history: [],
+      historyIndex: -1
+    };
+
+    const mainCanvas = document.getElementById('main-canvas');
+    const ghostCanvas = document.getElementById('ghost-canvas');
+    const overlayCanvas = document.getElementById('overlay-canvas');
+    const discCanvas = document.getElementById('disc-canvas');
+    const canvasContainer = document.getElementById('canvas-container');
+    const carouselTrack = document.getElementById('carousel-track');
+    const imageControls = document.getElementById('image-controls');
+
+    const ctx = mainCanvas.getContext('2d');
+    const ghostCtx = ghostCanvas.getContext('2d');
+    const overlayCtx = overlayCanvas.getContext('2d');
+    const discCtx = discCanvas.getContext('2d');
+
+    function init() {
+      // Create frame storage - transparent backgrounds
+      for (let i = 0; i < FRAME_COUNT; i++) {
+        const frameCanvas = document.createElement('canvas');
+        frameCanvas.width = CANVAS_SIZE;
+        frameCanvas.height = CANVAS_SIZE;
+        state.frames.push(frameCanvas);
+        state.images.push([]);
+      }
+      
+      buildCarousel();
+      drawCurrentFrame();
+      drawGhost();
+      drawWedgeOverlay();
+      setupEventListeners();
+      updateCanvasCursor(); // Set initial cursor based on default tool
+      saveHistory(); // Save initial state
+      updateHistoryButtons();
+    }
+
+    function buildCarousel() {
+      carouselTrack.innerHTML = '';
+      for (let i = 0; i < FRAME_COUNT; i++) {
+        const thumb = document.createElement('div');
+        thumb.className = `frame-thumb ${i === state.currentFrame ? 'active' : ''}`;
+        thumb.dataset.frame = i;
+        
+        const thumbCanvas = document.createElement('canvas');
+        thumbCanvas.width = 70;
+        thumbCanvas.height = 70;
+        thumb.appendChild(thumbCanvas);
+        
+        const number = document.createElement('span');
+        number.className = 'frame-number';
+        number.textContent = i + 1;
+        thumb.appendChild(number);
+        
+        thumb.addEventListener('click', () => switchToFrame(i));
+        carouselTrack.appendChild(thumb);
+      }
+      updateCarouselThumbnails();
+    }
+
+    function updateCarouselThumbnails() {
+      document.querySelectorAll('.frame-thumb').forEach((thumb, i) => {
+        const thumbCanvas = thumb.querySelector('canvas');
+        const thumbCtx = thumbCanvas.getContext('2d');
+        thumbCtx.clearRect(0, 0, 70, 70);
+        thumbCtx.drawImage(state.frames[i], 0, 0, 70, 70);
+        thumb.classList.toggle('active', i === state.currentFrame);
+      });
+    }
+
+    function switchToFrame(index) {
+      if (index === state.currentFrame) return;
+      saveCurrentFrame();
+      state.selectedImage = null;
+      imageControls.classList.add('hidden');
+      state.currentFrame = index;
+      drawCurrentFrame();
+      drawGhost();
+      updateCarouselThumbnails();
+    }
+
+    function saveCurrentFrame() {
+      const frameCanvas = state.frames[state.currentFrame];
+      const frameCtx = frameCanvas.getContext('2d');
+      frameCtx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      frameCtx.drawImage(mainCanvas, 0, 0);
+    }
+
+    function saveHistory() {
+      // Remove any future history if we're not at the end
+      state.history = state.history.slice(0, state.historyIndex + 1);
+
+      // Save current state (deep clone frames and images)
+      const snapshot = {
+        frames: state.frames.map(f => {
+          const c = document.createElement('canvas');
+          c.width = CANVAS_SIZE;
+          c.height = CANVAS_SIZE;
+          c.getContext('2d').drawImage(f, 0, 0);
+          return c;
+        }),
+        images: state.images.map(frameImgs => frameImgs.map(img => ({...img})))
+      };
+
+      state.history.push(snapshot);
+      state.historyIndex++;
+
+      // Limit history to 50 states
+      if (state.history.length > 50) {
+        state.history.shift();
+        state.historyIndex--;
+      }
+
+      updateHistoryButtons();
+    }
+
+    function undo() {
+      if (state.historyIndex > 0) {
+        state.historyIndex--;
+        restoreHistory();
+      }
+    }
+
+    function redo() {
+      if (state.historyIndex < state.history.length - 1) {
+        state.historyIndex++;
+        restoreHistory();
+      }
+    }
+
+    function restoreHistory() {
+      const snapshot = state.history[state.historyIndex];
+      state.frames = snapshot.frames.map(f => {
+        const c = document.createElement('canvas');
+        c.width = CANVAS_SIZE;
+        c.height = CANVAS_SIZE;
+        c.getContext('2d').drawImage(f, 0, 0);
+        return c;
+      });
+      state.images = snapshot.images.map(frameImgs => frameImgs.map(img => ({...img})));
+
+      drawCurrentFrame();
+      redrawWithImages();
+      updateCarouselThumbnails();
+      updateHistoryButtons();
+    }
+
+    function updateHistoryButtons() {
+      document.getElementById('undo-btn').disabled = state.historyIndex <= 0;
+      document.getElementById('redo-btn').disabled = state.historyIndex >= state.history.length - 1;
+    }
+
+    function updatePositionTracker() {
+      const tracker = document.getElementById('position-tracker');
+      if (state.selectedImage) {
+        tracker.classList.remove('hidden');
+        const topLeftX = Math.round(state.selectedImage.x - state.selectedImage.width / 2);
+        const topLeftY = Math.round(state.selectedImage.y - state.selectedImage.height / 2);
+        document.getElementById('pos-x').textContent = topLeftX;
+        document.getElementById('pos-y').textContent = topLeftY;
+      } else {
+        tracker.classList.add('hidden');
+      }
+    }
+
+    function drawCurrentFrame() {
+      ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      ctx.drawImage(state.frames[state.currentFrame], 0, 0);
+    }
+
+    function drawGhost() {
+      ghostCtx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      
+      // No ghost on frame 0, or if disabled
+      if (!state.ghostEnabled || state.currentFrame === 0) {
+        return;
+      }
+      
+      // Draw previous frame on top at low opacity
+      const prevIndex = state.currentFrame - 1;
+      ghostCtx.globalAlpha = state.ghostOpacity;
+      ghostCtx.drawImage(state.frames[prevIndex], 0, 0);
+      ghostCtx.globalAlpha = 1.0;
+    }
+
+    function drawWedgeOverlay() {
+      overlayCtx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      const centerX = CANVAS_SIZE / 2;
+      const centerY = CANVAS_SIZE;
+      const radius = CANVAS_SIZE * 1.5;
+      
+      overlayCtx.fillStyle = 'rgba(200, 195, 185, 0.6)';
+      overlayCtx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      
+      overlayCtx.save();
+      overlayCtx.globalCompositeOperation = 'destination-out';
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(centerX, centerY);
+      const startAngle = -Math.PI / 2 - WEDGE_ANGLE / 2;
+      const endAngle = -Math.PI / 2 + WEDGE_ANGLE / 2;
+      overlayCtx.arc(centerX, centerY, radius, startAngle, endAngle);
+      overlayCtx.closePath();
+      overlayCtx.fill();
+      overlayCtx.restore();
+    }
+
+    function startDrawing(e) {
+      // Only allow drawing with brush/eraser tools
+      if (state.tool === 'selection') return;
+
+      if (state.selectedImage) return;
+      state.isDrawing = true;
+      const pos = getCanvasPosition(e);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+
+      if (state.tool === 'brush') {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = '#1A1A1A';
+        ctx.lineWidth = 4;
+      } else {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineWidth = 20;
+      }
+
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+    }
+
+    function draw(e) {
+      if (!state.isDrawing) return;
+      const pos = getCanvasPosition(e);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+    }
+
+    function stopDrawing() {
+      if (state.isDrawing) {
+        state.isDrawing = false;
+        saveCurrentFrame();
+        updateCarouselThumbnails();
+        saveHistory();
+      }
+    }
+
+    function getCanvasPosition(e) {
+      const rect = mainCanvas.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left) * (CANVAS_SIZE / rect.width),
+        y: (e.clientY - rect.top) * (CANVAS_SIZE / rect.height)
+      };
+    }
+
+    function handleImageUpload(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const aspectRatio = img.width / img.height;
+          let width = Math.min(img.width, CANVAS_SIZE * 0.6);
+          let height = width / aspectRatio;
+
+          const imageObj = {
+            img, x: CANVAS_SIZE / 2, y: CANVAS_SIZE / 2,
+            width, height, rotation: 0
+          };
+
+          if (state.uploadToAllFrames) {
+            // Add to all frames
+            for (let i = 0; i < FRAME_COUNT; i++) {
+              const imgCopy = {
+                img: imageObj.img,
+                x: imageObj.x,
+                y: imageObj.y,
+                width: imageObj.width,
+                height: imageObj.height,
+                rotation: imageObj.rotation
+              };
+              state.images[i].push(imgCopy);
+              if (i === state.currentFrame) {
+                state.selectedImage = imgCopy;
+              }
+            }
+            // Redraw all frames to include the new image
+            const currentFrame = state.currentFrame;
+            for (let i = 0; i < FRAME_COUNT; i++) {
+              state.currentFrame = i;
+              const frameCanvas = state.frames[i];
+              const frameCtx = frameCanvas.getContext('2d');
+              frameCtx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+              // Draw all images for this frame
+              state.images[i].forEach(imgObj => {
+                frameCtx.save();
+                frameCtx.translate(imgObj.x, imgObj.y);
+                frameCtx.rotate(imgObj.rotation);
+                frameCtx.drawImage(imgObj.img, -imgObj.width / 2, -imgObj.height / 2, imgObj.width, imgObj.height);
+                frameCtx.restore();
+              });
+            }
+            state.currentFrame = currentFrame;
+          } else {
+            // Add to current frame only
+            state.images[state.currentFrame].push(imageObj);
+            state.selectedImage = imageObj;
+          }
+
+          redrawWithImages();
+          updateImageControls();
+          updatePositionTracker();
+          saveCurrentFrame();
+          updateCarouselThumbnails();
+          saveHistory();
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function convertStrokesToImage() {
+      // Check if main canvas has any content
+      const imageData = mainCtx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      const hasContent = imageData.data.some(channel => channel !== 0);
+
+      // If no strokes drawn, nothing to convert
+      if (!hasContent) {
+        return;  // Silent return, no alert needed
+      }
+
+      const frameCanvas = state.frames[state.currentFrame];
+
+      // Create image from current drawing
+      const img = new Image();
+      img.onload = () => {
+        const imageObj = {
+          img,
+          x: CANVAS_SIZE / 2,
+          y: CANVAS_SIZE / 2,
+          width: CANVAS_SIZE,
+          height: CANVAS_SIZE,
+          rotation: 0
+        };
+
+        // Clear the drawing from main canvas
+        mainCtx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+        // Clear the stored frame canvas
+        const frameCtx = frameCanvas.getContext('2d');
+        frameCtx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+        // Add as image to current frame
+        state.images[state.currentFrame].push(imageObj);
+        state.selectedImage = imageObj;
+
+        // Redraw everything
+        redrawWithImages();
+        updateImageControls();
+        updatePositionTracker();
+        saveCurrentFrame();
+        updateCarouselThumbnails();
+        saveHistory();
+      };
+
+      // Convert frame canvas to image data URL
+      img.src = frameCanvas.toDataURL('image/png');
+    }
+
+    function redrawWithImages() {
+      // Clear canvas, redraw stored frame (strokes), then draw images on top
+      ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      ctx.drawImage(state.frames[state.currentFrame], 0, 0);
+      state.images[state.currentFrame].forEach(img => {
+        ctx.save();
+        ctx.translate(img.x, img.y);
+        ctx.rotate(img.rotation);
+        ctx.drawImage(img.img, -img.width / 2, -img.height / 2, img.width, img.height);
+        ctx.restore();
+      });
+    }
+
+    function updateImageControls() {
+      if (!state.selectedImage) {
+        imageControls.classList.add('hidden');
+        updatePositionTracker();
+        return;
+      }
+      imageControls.classList.remove('hidden');
+      const img = state.selectedImage;
+      const rect = mainCanvas.getBoundingClientRect();
+      const scale = rect.width / CANVAS_SIZE;
+
+      imageControls.style.width = `${img.width * scale}px`;
+      imageControls.style.height = `${img.height * scale}px`;
+      imageControls.style.left = `${(img.x - img.width / 2) * scale}px`;
+      imageControls.style.top = `${(img.y - img.height / 2) * scale}px`;
+      imageControls.style.transform = `rotate(${img.rotation}rad)`;
+      updatePositionTracker();
+    }
+
+    // DISC RENDERING
+    let discAnimationId = null;
+    let discRotation = 0;
+    let lastFrameTime = 0;
+    const FRAMES_PER_SECOND = 12;
+
+    function renderDisc() {
+      const size = Math.min(window.innerWidth, window.innerHeight) * 0.85;
+      discCanvas.width = size;
+      discCanvas.height = size;
+      
+      const cx = size / 2;
+      const cy = size / 2;
+      const r = size / 2 - 10;
+
+      discCtx.clearRect(0, 0, size, size);
+      
+      // Background circle
+      discCtx.fillStyle = '#F5F0E8';
+      discCtx.beginPath();
+      discCtx.arc(cx, cy, r, 0, Math.PI * 2);
+      discCtx.fill();
+
+      // Draw each wedge
+      for (let i = 0; i < FRAME_COUNT; i++) {
+        discCtx.save();
+        discCtx.translate(cx, cy);
+        discCtx.rotate(discRotation + i * WEDGE_ANGLE);
+        
+        discCtx.beginPath();
+        discCtx.moveTo(0, 0);
+        discCtx.arc(0, 0, r, -WEDGE_ANGLE / 2, WEDGE_ANGLE / 2);
+        discCtx.closePath();
+        discCtx.clip();
+        
+        const scale = r / CANVAS_SIZE;
+        discCtx.scale(scale, scale);
+        discCtx.rotate(-Math.PI / 2);
+        discCtx.translate(-CANVAS_SIZE / 2, 0);
+        discCtx.drawImage(state.frames[i], 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+        
+        discCtx.restore();
+      }
+
+      // Center hole
+      discCtx.fillStyle = '#F5F0E8';
+      discCtx.beginPath();
+      discCtx.arc(cx, cy, 12, 0, Math.PI * 2);
+      discCtx.fill();
+      discCtx.strokeStyle = 'rgba(150,140,130,0.5)';
+      discCtx.lineWidth = 2;
+      discCtx.stroke();
+
+      // Outer ring
+      discCtx.beginPath();
+      discCtx.arc(cx, cy, r, 0, Math.PI * 2);
+      discCtx.strokeStyle = 'rgba(150,140,130,0.3)';
+      discCtx.stroke();
+    }
+
+    function animateDisc(timestamp) {
+      if (!lastFrameTime) lastFrameTime = timestamp;
+      const elapsed = timestamp - lastFrameTime;
+      
+      if (elapsed >= 1000 / FRAMES_PER_SECOND) {
+        discRotation += WEDGE_ANGLE;
+        lastFrameTime = timestamp;
+        renderDisc();
+      }
+      
+      discAnimationId = requestAnimationFrame(animateDisc);
+    }
+
+    function switchView(view) {
+      state.view = view;
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+      
+      if (view === 'editor') {
+        document.getElementById('editor-view').classList.add('active');
+        document.querySelector('[data-view="editor"]').classList.add('active');
+        if (discAnimationId) cancelAnimationFrame(discAnimationId);
+      } else {
+        saveCurrentFrame();
+        document.getElementById('disc-view').classList.add('active');
+        document.querySelector('[data-view="disc"]').classList.add('active');
+        lastFrameTime = 0;
+        renderDisc();
+        animateDisc(0);
+      }
+    }
+
+    function updateCanvasCursor() {
+      if (state.tool === 'selection') {
+        mainCanvas.style.cursor = 'default';  // Normal pointer
+      } else if (state.tool === 'brush' || state.tool === 'eraser') {
+        mainCanvas.style.cursor = 'crosshair';  // Drawing cursor
+      }
+    }
+
+    function setupEventListeners() {
+      mainCanvas.addEventListener('mousedown', startDrawing);
+      mainCanvas.addEventListener('mousemove', draw);
+      mainCanvas.addEventListener('mouseup', stopDrawing);
+      mainCanvas.addEventListener('mouseleave', stopDrawing);
+
+      document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const previousTool = state.tool;
+          const newTool = btn.dataset.tool;
+
+          // Update state and UI first
+          state.tool = newTool;
+          document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          updateCanvasCursor();
+
+          // Check if switching TO selection FROM a drawing tool
+          if (newTool === 'selection' && (previousTool === 'brush' || previousTool === 'eraser')) {
+            // Attempt to convert strokes to image after tool is switched
+            convertStrokesToImage();
+          }
+
+          // Deselect image when switching TO drawing tools
+          if ((newTool === 'brush' || newTool === 'eraser') && state.selectedImage) {
+            state.selectedImage = null;
+            imageControls.classList.add('hidden');
+            redrawWithImages();
+          }
+        });
+      });
+
+      document.getElementById('clear-btn').addEventListener('click', () => {
+        ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+        state.images[state.currentFrame] = [];
+        state.selectedImage = null;
+        imageControls.classList.add('hidden');
+        saveCurrentFrame();
+        updateCarouselThumbnails();
+        saveHistory();
+      });
+
+      // History controls
+      document.getElementById('undo-btn').addEventListener('click', undo);
+      document.getElementById('redo-btn').addEventListener('click', redo);
+
+      // Image upload
+      document.getElementById('upload-btn').addEventListener('click', () => {
+        document.getElementById('file-input').click();
+      });
+
+      document.getElementById('file-input').addEventListener('change', (e) => {
+        if (e.target.files[0]) handleImageUpload(e.target.files[0]);
+      });
+
+      document.getElementById('upload-all-frames').addEventListener('change', (e) => {
+        state.uploadToAllFrames = e.target.checked;
+      });
+
+      // Position controls
+      document.getElementById('copy-position-btn').addEventListener('click', () => {
+        if (state.selectedImage) {
+          state.copiedPosition = {
+            x: state.selectedImage.x,
+            y: state.selectedImage.y
+          };
+        }
+      });
+
+      document.getElementById('paste-position-btn').addEventListener('click', () => {
+        if (state.selectedImage && state.copiedPosition) {
+          state.selectedImage.x = state.copiedPosition.x;
+          state.selectedImage.y = state.copiedPosition.y;
+          redrawWithImages();
+          updateImageControls();
+          saveCurrentFrame();
+          updateCarouselThumbnails();
+          saveHistory();
+        }
+      });
+
+      // Ghost controls
+      document.getElementById('ghost-toggle').addEventListener('change', (e) => {
+        state.ghostEnabled = e.target.checked;
+        drawGhost();
+      });
+
+      document.getElementById('ghost-opacity').addEventListener('input', (e) => {
+        state.ghostOpacity = parseInt(e.target.value) / 100;
+        document.getElementById('ghost-opacity-value').textContent = e.target.value + '%';
+        drawGhost();
+      });
+
+      canvasContainer.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        canvasContainer.classList.add('drag-over');
+      });
+      canvasContainer.addEventListener('dragleave', () => canvasContainer.classList.remove('drag-over'));
+      canvasContainer.addEventListener('drop', (e) => {
+        e.preventDefault();
+        canvasContainer.classList.remove('drag-over');
+        if (e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0]);
+      });
+
+      document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.addEventListener('click', () => switchView(btn.dataset.view));
+      });
+
+      document.getElementById('exit-disc-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        switchView('editor');
+      });
+
+      document.getElementById('disc-view').addEventListener('click', () => switchView('editor'));
+
+      document.addEventListener('keydown', (e) => {
+        if (state.view !== 'editor') return;
+
+        // Arrow key navigation (only when no image selected) or image nudging (when image selected)
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          if (state.selectedImage) {
+            // Image nudging
+            e.preventDefault();
+            const nudgeAmount = e.shiftKey ? 10 : 1;
+
+            if (e.key === 'ArrowLeft') state.selectedImage.x -= nudgeAmount;
+            if (e.key === 'ArrowRight') state.selectedImage.x += nudgeAmount;
+            if (e.key === 'ArrowUp') state.selectedImage.y -= nudgeAmount;
+            if (e.key === 'ArrowDown') state.selectedImage.y += nudgeAmount;
+
+            // Apply snapping to other images' centers
+            const imgs = state.images[state.currentFrame];
+            for (let i = 0; i < imgs.length; i++) {
+              const otherImg = imgs[i];
+              if (otherImg !== state.selectedImage) {
+                const dx = Math.abs(state.selectedImage.x - otherImg.x);
+                const dy = Math.abs(state.selectedImage.y - otherImg.y);
+
+                if (dx < SNAP_THRESHOLD) state.selectedImage.x = otherImg.x;
+                if (dy < SNAP_THRESHOLD) state.selectedImage.y = otherImg.y;
+              }
+            }
+
+            redrawWithImages();
+            updateImageControls();
+            saveCurrentFrame();
+            updateCarouselThumbnails();
+            saveHistory();
+          } else {
+            // Frame navigation
+            if (e.key === 'ArrowLeft') switchToFrame((state.currentFrame - 1 + FRAME_COUNT) % FRAME_COUNT);
+            if (e.key === 'ArrowRight') switchToFrame((state.currentFrame + 1) % FRAME_COUNT);
+          }
+        }
+
+        // Delete selected image (Delete/Backspace key)
+        if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedImage) {
+          e.preventDefault();
+          const imgs = state.images[state.currentFrame];
+          const index = imgs.indexOf(state.selectedImage);
+          if (index > -1) {
+            imgs.splice(index, 1);
+            state.selectedImage = null;
+            imageControls.classList.add('hidden');
+            redrawWithImages();
+            saveCurrentFrame();
+            updateCarouselThumbnails();
+            saveHistory();
+          }
+        }
+
+        // Undo (Cmd+Z / Ctrl+Z)
+        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'z') {
+          e.preventDefault();
+          undo();
+        }
+
+        // Redo (Cmd+Shift+Z / Ctrl+Shift+Z)
+        if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'z') {
+          e.preventDefault();
+          redo();
+        }
+
+        // Copy image (Cmd+C / Ctrl+C)
+        if ((e.metaKey || e.ctrlKey) && e.key === 'c' && state.selectedImage) {
+          e.preventDefault();
+          state.copiedImage = {
+            img: state.selectedImage.img,
+            x: state.selectedImage.x,
+            y: state.selectedImage.y,
+            width: state.selectedImage.width,
+            height: state.selectedImage.height,
+            rotation: state.selectedImage.rotation
+          };
+        }
+
+        // Paste image (Cmd+V / Ctrl+V)
+        if ((e.metaKey || e.ctrlKey) && e.key === 'v' && state.copiedImage) {
+          e.preventDefault();
+          const newImage = {
+            img: state.copiedImage.img,
+            x: state.copiedImage.x,
+            y: state.copiedImage.y,
+            width: state.copiedImage.width,
+            height: state.copiedImage.height,
+            rotation: state.copiedImage.rotation
+          };
+          state.images[state.currentFrame].push(newImage);
+          state.selectedImage = newImage;
+          redrawWithImages();
+          updateImageControls();
+          saveCurrentFrame();
+          updateCarouselThumbnails();
+          saveHistory();
+        }
+
+        // Tool switching shortcuts
+        // V for selection tool
+        if (e.key === 'v' && !e.metaKey && !e.ctrlKey) {
+          e.preventDefault();
+          document.querySelector('[data-tool="selection"]').click();
+        }
+
+        // B for brush tool
+        if (e.key === 'b' && !e.metaKey && !e.ctrlKey) {
+          e.preventDefault();
+          document.querySelector('[data-tool="brush"]').click();
+        }
+
+        // E for eraser tool
+        if (e.key === 'e' && !e.metaKey && !e.ctrlKey) {
+          e.preventDefault();
+          document.querySelector('[data-tool="eraser"]').click();
+        }
+      });
+
+      // Image dragging
+      let dragging = false, dragStart = {}, imgStart = {};
+      
+      mainCanvas.addEventListener('mousedown', (e) => {
+        const pos = getCanvasPosition(e);
+        const imgs = state.images[state.currentFrame];
+        
+        for (let i = imgs.length - 1; i >= 0; i--) {
+          const img = imgs[i];
+          const dx = pos.x - img.x, dy = pos.y - img.y;
+          const cos = Math.cos(-img.rotation), sin = Math.sin(-img.rotation);
+          const lx = dx * cos - dy * sin, ly = dx * sin + dy * cos;
+          
+          if (Math.abs(lx) < img.width / 2 && Math.abs(ly) < img.height / 2) {
+            state.selectedImage = img;
+            dragging = true;
+            dragStart = pos;
+            imgStart = { x: img.x, y: img.y };
+            updateImageControls();
+            return;
+          }
+        }
+        if (state.selectedImage) {
+          state.selectedImage = null;
+          imageControls.classList.add('hidden');
+        }
+      });
+
+      mainCanvas.addEventListener('mousemove', (e) => {
+        if (!dragging || !state.selectedImage) return;
+        const pos = getCanvasPosition(e);
+        let nx = imgStart.x + pos.x - dragStart.x;
+        let ny = imgStart.y + pos.y - dragStart.y;
+
+        // Snap to canvas center
+        if (Math.abs(nx - CANVAS_SIZE/2) < SNAP_THRESHOLD) nx = CANVAS_SIZE/2;
+        if (Math.abs(ny - CANVAS_SIZE/2) < SNAP_THRESHOLD) ny = CANVAS_SIZE/2;
+
+        // Snap to other images' centers
+        const imgs = state.images[state.currentFrame];
+        for (let i = 0; i < imgs.length; i++) {
+          const otherImg = imgs[i];
+          if (otherImg !== state.selectedImage) {
+            if (Math.abs(nx - otherImg.x) < SNAP_THRESHOLD) nx = otherImg.x;
+            if (Math.abs(ny - otherImg.y) < SNAP_THRESHOLD) ny = otherImg.y;
+          }
+        }
+
+        state.selectedImage.x = nx;
+        state.selectedImage.y = ny;
+        redrawWithImages();
+        updateImageControls();
+      });
+
+      mainCanvas.addEventListener('mouseup', () => {
+        if (dragging) {
+          dragging = false;
+          saveCurrentFrame();
+          updateCarouselThumbnails();
+          saveHistory();
+        }
+      });
+
+      // Resize handles
+      let resizing = false, resizeType = '', resizeStart = {}, origSize = {};
+      
+      document.querySelectorAll('.handle').forEach(h => {
+        h.addEventListener('mousedown', (e) => {
+          e.stopPropagation();
+          if (!state.selectedImage) return;
+          resizing = true;
+          resizeType = h.className.split(' ')[1];
+          resizeStart = { x: e.clientX, y: e.clientY };
+          origSize = { w: state.selectedImage.width, h: state.selectedImage.height };
+        });
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!resizing || !state.selectedImage) return;
+        const dx = e.clientX - resizeStart.x, dy = e.clientY - resizeStart.y;
+        const scale = mainCanvas.getBoundingClientRect().width / CANVAS_SIZE;
+        
+        if (resizeType === 'handle-rotate') {
+          const rect = mainCanvas.getBoundingClientRect();
+          const cx = rect.left + state.selectedImage.x / CANVAS_SIZE * rect.width;
+          const cy = rect.top + state.selectedImage.y / CANVAS_SIZE * rect.height;
+          state.selectedImage.rotation = Math.atan2(e.clientY - cy, e.clientX - cx) + Math.PI/2;
+        } else {
+          const delta = (resizeType === 'handle-e' || resizeType === 'handle-w') 
+            ? (resizeType === 'handle-e' ? dx : -dx) 
+            : (resizeType === 'handle-s' ? dy : -dy);
+          const ratio = origSize.w / origSize.h;
+          if (resizeType.includes('e') || resizeType.includes('w')) {
+            state.selectedImage.width = Math.max(50, origSize.w + delta / scale * 2);
+            state.selectedImage.height = state.selectedImage.width / ratio;
+          } else {
+            state.selectedImage.height = Math.max(50, origSize.h + delta / scale * 2);
+            state.selectedImage.width = state.selectedImage.height * ratio;
+          }
+        }
+        redrawWithImages();
+        updateImageControls();
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (resizing) {
+          resizing = false;
+          saveCurrentFrame();
+          updateCarouselThumbnails();
+          saveHistory();
+        }
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>
